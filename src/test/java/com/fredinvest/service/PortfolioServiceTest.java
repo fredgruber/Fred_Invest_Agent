@@ -91,25 +91,25 @@ class PortfolioServiceTest {
         User user = user();
         Portfolio portfolio = portfolio(user);
         AssetDTO request = AssetDTO.builder()
-                .ticker("petr4")
-                .name("Petrobras")
+                .ticker("test4")
+                .name("Test Asset")
                 .category(AssetCategory.ACOES)
                 .quantity(new BigDecimal("10"))
                 .averagePrice(new BigDecimal("35.50"))
                 .build();
         when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
         when(portfolioRepository.findById(portfolio.getId())).thenReturn(Optional.of(portfolio));
-        when(assetRepository.findByPortfolioIdAndTicker(portfolio.getId(), "PETR4"))
+        when(assetRepository.findByPortfolioIdAndTicker(portfolio.getId(), "TEST4"))
                 .thenReturn(Optional.empty());
         when(assetRepository.save(any(Asset.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         AssetDTO response = portfolioService.addOrUpdateAsset(portfolio.getId(), request, user.getEmail());
 
-        assertEquals("PETR4", response.getTicker());
+        assertEquals("TEST4", response.getTicker());
         assertEquals(new BigDecimal("355.00"), response.getTotalValue());
         assertEquals(BigDecimal.ZERO.setScale(2), response.getGainLoss());
         verify(assetRepository).save(argThat(asset ->
-                asset.getTicker().equals("PETR4")
+                asset.getTicker().equals("TEST4")
                         && asset.getCurrentPrice().equals(request.getAveragePrice())));
     }
 
@@ -133,7 +133,7 @@ class PortfolioServiceTest {
     void getPortfolioSummaryCalculatesGainAndCategoryAllocation() {
         User user = user();
         AssetDTO asset = AssetDTO.builder()
-                .ticker("PETR4")
+                .ticker("TEST4")
                 .category(AssetCategory.ACOES)
                 .quantity(new BigDecimal("10"))
                 .averagePrice(new BigDecimal("10"))
@@ -145,7 +145,7 @@ class PortfolioServiceTest {
                 Portfolio.builder().id(1L).name("Main").user(user).build()));
         Portfolio portfolio = Portfolio.builder().id(1L).name("Main").user(user).build();
         portfolio.setAssets(List.of(Asset.builder()
-                .id(1L).ticker("PETR4").name("Petrobras").category(AssetCategory.ACOES)
+                .id(1L).ticker("TEST4").name("Test Asset").category(AssetCategory.ACOES)
                 .quantity(asset.getQuantity()).averagePrice(asset.getAveragePrice())
                 .currentPrice(asset.getCurrentPrice()).portfolio(portfolio).build()));
         when(portfolioRepository.findByUserId(user.getId())).thenReturn(List.of(portfolio));

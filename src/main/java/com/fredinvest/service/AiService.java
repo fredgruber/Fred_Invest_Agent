@@ -162,14 +162,14 @@ public class AiService {
 
         String userQuery = request.getPrompt();
         String effectiveKey = resolveEffectiveApiKey(request.getApiKey());
-        String reply;
+        String reply = null;
 
         if ("GEMINI".equalsIgnoreCase(provider)) {
             reply = callLiveGoogleGemini(userQuery, effectiveKey);
         } else if ("OPENAI".equalsIgnoreCase(provider)) {
             reply = callLiveOpenAi(userQuery, effectiveKey);
         } else {
-            reply = generateGenericFinancialReply(provider, userQuery);
+            reply = generateGenericFinancialReply(provider, model, userQuery, summary);
         }
 
         String formattedReply = String.format("[%s] %s", model, reply);

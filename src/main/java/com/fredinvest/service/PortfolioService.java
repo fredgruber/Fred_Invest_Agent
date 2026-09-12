@@ -8,6 +8,8 @@ import com.fredinvest.model.User;
 import com.fredinvest.repository.AssetRepository;
 import com.fredinvest.repository.PortfolioRepository;
 import com.fredinvest.repository.UserRepository;
+
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,7 +36,8 @@ public class PortfolioService {
                 .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado: " + email));
     }
 
-    @Transactional
+	@SuppressWarnings("null")
+	@Transactional
     public PortfolioResponse createPortfolio(PortfolioRequest request, String userEmail) {
         User user = getUserByEmail(userEmail);
 
@@ -48,7 +51,8 @@ public class PortfolioService {
         return mapToPortfolioResponse(portfolio);
     }
 
-    public List<PortfolioResponse> getUserPortfolios(String userEmail) {
+    @SuppressWarnings("null")
+	public List<PortfolioResponse> getUserPortfolios(String userEmail) {
         User user = getUserByEmail(userEmail);
         List<Portfolio> portfolios = portfolioRepository.findByUserId(user.getId());
 
@@ -68,8 +72,9 @@ public class PortfolioService {
                 .collect(Collectors.toList());
     }
 
-    @Transactional
-    public AssetDTO addOrUpdateAsset(Long portfolioId, AssetDTO assetDTO, String userEmail) {
+    @SuppressWarnings("null")
+	@Transactional
+    public AssetDTO addOrUpdateAsset(@NonNull Long portfolioId, AssetDTO assetDTO, String userEmail) {
         User user = getUserByEmail(userEmail);
         Portfolio portfolio = portfolioRepository.findById(portfolioId)
                 .orElseThrow(() -> new IllegalArgumentException("Carteira não encontrada."));
@@ -149,9 +154,10 @@ public class PortfolioService {
     }
 
     @Transactional
-    public AssetDTO updateAssetPrice(Long portfolioId, Long assetId, BigDecimal newPrice, String userEmail) {
+    public AssetDTO updateAssetPrice(Long portfolioId, @NonNull Long assetId, BigDecimal newPrice, String userEmail) {
         User user = getUserByEmail(userEmail);
-        Portfolio portfolio = portfolioRepository.findById(portfolioId)
+        @SuppressWarnings("null")
+		Portfolio portfolio = portfolioRepository.findById(portfolioId)
                 .orElseThrow(() -> new IllegalArgumentException("Carteira não encontrada."));
 
         if (!portfolio.getUser().getId().equals(user.getId())) {
@@ -173,7 +179,7 @@ public class PortfolioService {
     }
 
     @Transactional
-    public void deleteAsset(Long portfolioId, Long assetId, String userEmail) {
+    public void deleteAsset(@NonNull Long portfolioId, @NonNull Long assetId, String userEmail) {
         User user = getUserByEmail(userEmail);
         Portfolio portfolio = portfolioRepository.findById(portfolioId)
                 .orElseThrow(() -> new IllegalArgumentException("Carteira não encontrada."));
@@ -185,7 +191,8 @@ public class PortfolioService {
         assetRepository.deleteById(assetId);
     }
 
-    public PortfolioSummaryDTO getPortfolioSummary(String userEmail) {
+    @SuppressWarnings("null")
+	public PortfolioSummaryDTO getPortfolioSummary(String userEmail) {
         List<PortfolioResponse> portfolios = getUserPortfolios(userEmail);
 
         BigDecimal totalPatrimony = BigDecimal.ZERO;
@@ -237,7 +244,8 @@ public class PortfolioService {
                 .build();
     }
 
-    private PortfolioResponse mapToPortfolioResponse(Portfolio portfolio) {
+    @SuppressWarnings("null")
+	private PortfolioResponse mapToPortfolioResponse(Portfolio portfolio) {
         List<AssetDTO> assetDTOs = portfolio.getAssets().stream()
                 .map(this::mapToAssetDTO)
                 .collect(Collectors.toList());

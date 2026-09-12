@@ -46,7 +46,8 @@ public class OpenFinanceService {
         );
     }
 
-    @Transactional
+    @SuppressWarnings("null")
+	@Transactional
     public ConsentResponseDTO requestConsent(ConsentRequestDTO request, String userEmail) {
         User user = getUserByEmail(userEmail);
 
@@ -78,7 +79,8 @@ public class OpenFinanceService {
                 .build();
     }
 
-    @Transactional
+    @SuppressWarnings("null")
+	@Transactional
     public SyncResponseDTO authorizeAndSyncConsent(String consentId, String userEmail) {
         User user = getUserByEmail(userEmail);
 

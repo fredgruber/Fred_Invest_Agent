@@ -40,7 +40,8 @@ class PortfolioServiceTest {
     @InjectMocks
     private PortfolioService portfolioService;
 
-    @Test
+    @SuppressWarnings("null")
+	@Test
     void createPortfolioMapsSavedPortfolio() {
         User user = user();
         Portfolio savedPortfolio = Portfolio.builder()
@@ -62,7 +63,8 @@ class PortfolioServiceTest {
         verify(portfolioRepository).save(any(Portfolio.class));
     }
 
-    @Test
+    @SuppressWarnings("null")
+	@Test
     void getUserPortfoliosCreatesDefaultWhenUserHasNoPortfolios() {
         User user = user();
         Portfolio defaultPortfolio = Portfolio.builder()
@@ -83,7 +85,8 @@ class PortfolioServiceTest {
                         && portfolio.getUser().equals(user)));
     }
 
-    @Test
+    @SuppressWarnings("null")
+	@Test
     void addOrUpdateAssetCreatesUppercaseAssetAndUsesAveragePriceFallback() {
         User user = user();
         Portfolio portfolio = portfolio(user);
@@ -110,7 +113,8 @@ class PortfolioServiceTest {
                         && asset.getCurrentPrice().equals(request.getAveragePrice())));
     }
 
-    @Test
+    @SuppressWarnings("null")
+	@Test
     void addOrUpdateAssetRejectsPortfolioOwnedByAnotherUser() {
         User authenticatedUser = user();
         User owner = User.builder().id(99L).email("owner@example.com").fullName("Owner").build();

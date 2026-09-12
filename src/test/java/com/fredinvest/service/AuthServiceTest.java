@@ -44,7 +44,8 @@ class AuthServiceTest {
     @InjectMocks
     private AuthService authService;
 
-    @Test
+    @SuppressWarnings("null")
+	@Test
     void registerCreatesLocalUserAndReturnsToken() {
         RegisterRequest request = RegisterRequest.builder()
                 .fullName("Ana Silva")
@@ -67,7 +68,8 @@ class AuthServiceTest {
                         && user.getProvider() == AuthProvider.LOCAL));
     }
 
-    @Test
+    @SuppressWarnings("null")
+	@Test
     void registerRejectsDuplicateEmail() {
         RegisterRequest request = RegisterRequest.builder()
                 .fullName("Ana Silva")
@@ -108,7 +110,8 @@ class AuthServiceTest {
         verify(authenticationManager).authenticate(any());
     }
 
-    @Test
+    @SuppressWarnings("null")
+	@Test
     void socialLoginCreatesUserWhenEmailDoesNotExist() {
         OAuth2LoginRequest request = OAuth2LoginRequest.builder()
                 .provider("google")

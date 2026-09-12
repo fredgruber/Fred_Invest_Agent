@@ -27,7 +27,8 @@ public class AuthService {
         this.tokenProvider = tokenProvider;
     }
 
-    @Transactional
+    @SuppressWarnings("null")
+	@Transactional
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new IllegalArgumentException("E-mail já cadastrado no sistema.");
@@ -89,7 +90,8 @@ public class AuthService {
         }
 
         String finalEmail = email;
-        User user = userRepository.findByEmail(finalEmail)
+        @SuppressWarnings("null")
+		User user = userRepository.findByEmail(finalEmail)
                 .orElseGet(() -> {
                     User newUser = User.builder()
                             .email(finalEmail)

@@ -169,7 +169,7 @@ public class AiService {
         } else if ("OPENAI".equalsIgnoreCase(provider)) {
             reply = callLiveOpenAi(userQuery, effectiveKey);
         } else {
-            reply = generateGenericFinancialReply(provider, model, userQuery, summary);
+            reply = generateGenericFinancialReply(provider, userQuery);
         }
 
         String formattedReply = String.format("[%s] %s", model, reply);
@@ -273,7 +273,6 @@ public class AiService {
             return "❌ Exceção ao conectar com a API da OpenAI: " + e.getMessage();
         }
     }
-
     private String generateGenericFinancialReply(String provider, String model, String query, PortfolioSummaryDTO summary) {
         switch (provider) {
             case "GEMINI":

@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fred Invest Agent - PWA & IA Financeira</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#2563eb">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+
+  <!-- PWA Install Banner -->
+  <div id="pwa-install-banner" class="pwa-banner hidden">
+    <span>💡 Instale o Fred Invest App na sua tela inicial para acesso rápido offline!</span>
+    <button id="btn-install-pwa" style="background: white; color: #2563eb; border: none; padding: 0.4rem 0.8rem; border-radius: 0.25rem; font-weight: bold; cursor: pointer;">Instalar PWA</button>
+  </div>
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <span>📈 Fred Invest Agent</span>
+    </div>
+    <nav id="main-nav" class="hidden">
+      <button id="nav-dashboard" class="active" onclick="switchTab('dashboard')">Dashboard</button>
+      <button id="nav-ai" onclick="switchTab('ai')">IA Assistente</button>
+      <button id="nav-openfinance" onclick="switchTab('openfinance')">Open Finance</button>
+      <button id="btn-logout" onclick="logout()" style="color: var(--accent-red);">Sair</button>
+    </nav>
+  </header>
+
+  <!-- Auth View -->
+  <div id="auth-view" class="auth-container">
+    <div class="auth-tabs">
+      <button id="tab-login" class="active" onclick="toggleAuthTab('login')">Entrar</button>
+      <button id="tab-register" onclick="toggleAuthTab('register')">Cadastrar</button>
+    </div>
+
+    <!-- Form Login -->
+    <form id="form-login" onsubmit="handleLogin(event)">
+      <div class="form-group">
+        <label>E-mail</label>
+        <input type="email" id="login-email" required placeholder="seu@email.com">
+      </div>
+      <div class="form-group">
+        <label>Senha</label>
+        <input type="password" id="login-password" required placeholder="••••••••">
+      </div>
+      <button type="submit" class="btn-primary">Entrar com E-mail</button>
+    </form>
+
+    <!-- Form Register -->
+    <form id="form-register" class="hidden" onsubmit="handleRegister(event)">
+      <div class="form-group">
+        <label>Nome Completo</label>
+        <input type="text" id="reg-name" required placeholder="Seu Nome">
+      </div>
+      <div class="form-group">
+        <label>E-mail</label>
+        <input type="email" id="reg-email" required placeholder="seu@email.com">
+      </div>
+      <div class="form-group">
+        <label>Senha</label>
+        <input type="password" id="reg-password" required minlength="6" placeholder="Mínimo 6 caracteres">
+      </div>
+      <button type="submit" class="btn-primary">Criar Conta</button>
+    </form>
+
+    <div class="divider">
+      <span>OU CONTINUE COM</span>
+    </div>
+
+    <div class="social-btns">
+      <button class="btn-social" onclick="handleSocialLogin('GOOGLE')">
+        <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
+        Entrar com Google
+      </button>
+      <button class="btn-social" onclick="handleSocialLogin('APPLE')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.36c.64-.78 1.08-1.85.96-2.94-.93.04-2.07.62-2.74 1.4-.6.69-1.12 1.79-.98 2.86 1.05.08 2.12-.54 2.76-1.32z"/></svg>
+        Entrar com Apple
+      </button>
+      <button class="btn-social" onclick="handleSocialLogin('MICROSOFT')">
+        <svg width="18" height="18" viewBox="0 0 23 23"><path fill="#f35325" d="M1 1h10v10H1z"/><path fill="#81bc06" d="M12 1h10v10H12z"/><path fill="#05a6f0" d="M1 12h10v10H1z"/><path fill="#ffba08" d="M12 12h10v10H12z"/></svg>
+        Entrar com Microsoft
+      </button>
+    </div>
+  </div>
+
+  <!-- App Main Content (Dashboard, AI, OpenFinance) -->
+  <main id="app-view" class="hidden">
+
+    <!-- Tab 1: Dashboard -->
+    <div id="tab-content-dashboard">
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-title">Patrimônio Total</div>
+          <div class="metric-value" id="val-patrimony">R$ 0,00</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Total Investido</div>
+          <div class="metric-value" id="val-invested">R$ 0,00</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Lucro / Prejuízo</div>
+          <div class="metric-value" id="val-gainloss">R$ 0,00 (0,00%)</div>
+        </div>
+      </div>
+
+      <!-- Assets Table -->
+      <div class="card">
+        <div class="card-header">
+          <h2>📊 Ativos da Carteira</h2>
+          <button class="btn-primary" style="width: auto; padding: 0.5rem 1rem;" onclick="openAddAssetModal()">+ Adicionar Ativo</button>
+        </div>
+
+        <!-- Add Asset Form Inline -->
+        <div id="add-asset-box" class="hidden" style="margin-bottom: 1.5rem; padding: 1rem; background: var(--bg-primary); border-radius: 0.5rem;">
+          <form onsubmit="handleAddAsset(event)" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) gap: 0.75rem;">
+            <input type="text" id="asset-ticker" placeholder="Ticker (ex: PETR4)" required style="padding: 0.5rem; background: var(--bg-card); color: white; border: 1px solid var(--border-color); border-radius: 0.25rem;">
+            <input type="text" id="asset-name" placeholder="Nome do Ativo" required style="padding: 0.5rem; background: var(--bg-card); color: white; border: 1px solid var(--border-color); border-radius: 0.25rem;">
+            <select id="asset-category" style="padding: 0.5rem; background: var(--bg-card); color: white; border: 1px solid var(--border-color); border-radius: 0.25rem;">
+              <option value="ACOES">Ações</option>
+              <option value="FIIS">FIIs</option>
+              <option value="RENDA_FIXA">Renda Fixa</option>
+              <option value="CRIPTO">Cripto</option>
+            </select>
+            <input type="number" step="0.0001" id="asset-qty" placeholder="Quantidade" required style="padding: 0.5rem; background: var(--bg-card); color: white; border: 1px solid var(--border-color); border-radius: 0.25rem;">
+            <input type="number" step="0.01" id="asset-price" placeholder="Preço Médio (R$)" required style="padding: 0.5rem; background: var(--bg-card); color: white; border: 1px solid var(--border-color); border-radius: 0.25rem;">
+            <button type="submit" class="btn-primary" style="padding: 0.5rem;">Salvar</button>
+          </form>
+        </div>
+
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Ticker</th>
+                <th>Nome</th>
+                <th>Categoria</th>
+                <th>Qtd</th>
+                <th>Preço Médio</th>
+                <th>Preço Atual</th>
+                <th>Valor Total</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="assets-table-body">
+              <tr><td colspan="8" style="text-align: center; color: var(--text-muted);">Nenhum ativo cadastrado ainda.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 2: IA Assistente -->
+    <div id="tab-content-ai" class="hidden">
+      <div class="card">
+        <div class="card-header">
+          <h2>🤖 Análise da Carteira por IA</h2>
+          <button class="btn-primary" style="width: auto;" onclick="runAiAnalysis()">Disparar Análise</button>
+        </div>
+        <div id="ai-analysis-result">
+          <p style="color: var(--text-muted);">Clique no botão acima para que a inteligência artificial analise a diversificação e riscos da sua carteira.</p>
+        </div>
+      </div>
+
+      <!-- IA Chat Box -->
+      <div class="card">
+        <h2>💬 Chat Financeiro IA</h2>
+        <div id="chat-messages" style="height: 200px; overflow-y: auto; background: var(--bg-primary); padding: 1rem; border-radius: 0.5rem; margin: 1rem 0; border: 1px solid var(--border-color);">
+          <div style="margin-bottom: 0.5rem; color: var(--accent-blue);"><strong>Assistente:</strong> Olá! Em que posso ajudar na gestão dos seus investimentos hoje?</div>
+        </div>
+        <form onsubmit="handleChatSubmit(event)" style="display: flex; gap: 0.5rem;">
+          <input type="text" id="chat-input" placeholder="Pergunte sobre seus investimentos, diversificação ou Open Finance..." required style="flex: 1; padding: 0.75rem; background: var(--bg-primary); color: white; border: 1px solid var(--border-color); border-radius: 0.375rem;">
+          <button type="submit" class="btn-primary" style="width: auto; padding: 0.75rem 1.5rem;">Enviar</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Tab 3: Open Finance -->
+    <div id="tab-content-openfinance" class="hidden">
+      <div class="card">
+        <h2>🌐 Conexão Open Finance Brasil</h2>
+        <p style="color: var(--text-muted); margin: 0.5rem 0 1.5rem 0;">
+          Conecte com segurança suas contas bancárias e corretoras para importar saldos e investimentos automaticamente com o seu consentimento explícito.
+        </p>
+
+        <h3 style="margin-bottom: 1rem;">Instituições Suportadas</h3>
+        <div id="institutions-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+          <!-- Loaded via JS -->
+        </div>
+
+        <h3 style="margin-bottom: 1rem;">Seus Consentimentos Ativos</h3>
+        <div id="consents-list">
+          <p style="color: var(--text-muted);">Nenhuma instituição conectada no momento.</p>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>
+

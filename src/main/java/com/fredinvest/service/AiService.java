@@ -169,7 +169,7 @@ public class AiService {
         } else if ("OPENAI".equalsIgnoreCase(provider)) {
             reply = callLiveOpenAi(userQuery, effectiveKey);
         } else {
-            reply = generateGenericFinancialReply(provider, model, userQuery, summary);
+            reply = generateGenericFinancialReply(provider, userQuery);
         }
 
         String formattedReply = String.format("[%s] %s", model, reply);
@@ -273,28 +273,7 @@ public class AiService {
             return "❌ Exceção ao conectar com a API da OpenAI: " + e.getMessage();
         }
     }
-
-    private String generateOptionsReply(String provider, String query, PortfolioSummaryDTO summary) {
-        switch (provider) {
-            case "GEMINI":
-                return "Estratégia de Pozinhos (Opções OTM): Consiste em comprar opções muito fora do dinheiro (strike distante do spot) por centavos (R$ 0,02 - R$ 0,05). Excelente assimetria positiva de risco (perda limitada ao prêmio, ganho potencial de 500% a 2000% em eventos de cauda no vencimento). Para o vencimento 09/26, monitore a volatilidade implícita de PETR e VALE.";
-            case "CLAUDE":
-                return "Análise de Risco de Pozinhos: Lembre-se de alocar no máximo 0,5% a 1% do seu patrimônio total em opções OTM (pozinhos). Por expirarem sem valor na maioria dos vencimentos, a gestão rigorosa do tamanho da posição é essencial para preservação de capital.";
-            case "DEEPSEEK":
-                return "Modelagem Quantitativa de Opções: Calculando o Black-Scholes para opções com vencimento em setembro/2026, a grega Delta para chamadas OTM fica abaixo de 0,10. Recomenda-se selecionar travas de alta/baixa se quiser reduzir o desgaste pelo tempo (Theta decay).";
-            case "OPENAI":
-            default:
-                return "Estratégia de Opções OTM ('Pozinhos'): Para o vencimento de 09/26, busque opções com delta baixo (10-15%) em ativos líquidos como PETR4, VALE3 ou BOVA11. Defina um valor financeiro pequeno que você esteja disposto a perder 100%, visando capturar explosões de volatilidade.";
-        }
-    }
-
-    private String generateDiversificationReply(String provider, PortfolioSummaryDTO summary) {
-        BigDecimal total = summary.getTotalPatrimony();
-        return String.format("Análise de Alocação (%s): Com patrimônio de R$ %,.2f, recomendo uma alocação estratégica dividida em: 40%% Renda Fixa (IPCA+ e CDI para liquidez), 35%% Ações/FIIs pagadores de dividendos e 15%% a 25%% Alocação Internacional / Opções de proteção.",
-                provider, total);
-    }
-
-    private String generateGenericFinancialReply(String provider, String model, String query, PortfolioSummaryDTO summary) {
+    private String generateGenericFinancialReply(String provider, String query) {
         switch (provider) {
             case "GEMINI":
                 return String.format("Com base nas últimas tendências de mercado do Google Gemini para '%s': no cenário macroeconômico atual com Selic elevada, a melhor estratégia é combinar juros reais com ativos descontados em bolsa.", query);

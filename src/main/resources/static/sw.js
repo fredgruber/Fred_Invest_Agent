@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fred-invest-v1';
+const CACHE_NAME = 'fred-invest-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -10,7 +10,7 @@ const ASSETS_TO_CACHE = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[ServiceWorker] Caching app shell');
+      console.log('[ServiceWorker] Caching app shell v2');
       return cache.addAll(ASSETS_TO_CACHE);
     })
   );
@@ -34,15 +34,24 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Ignorar requisições da API REST para manter dados atualizados
+  // Ignorar requisições de API
   if (event.request.url.includes('/api/')) {
     return;
   }
 
+  // Estratégia Network-First para desenvolvimento (busca rede primeiro, salva em cache)
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request).catch(() => caches.match('/index.html'));
-    })
+    fetch(event.request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200 && event.request.method === 'GET') {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+        return networkResponse;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
 

@@ -16,6 +16,8 @@ public class AiDTOs {
         private Long portfolioId;
         private String riskProfile; // CONSERVADOR, MODERADO, ARROJADO
         private String customGoal;
+        private String provider; // GEMINI, OPENAI, CLAUDE, DEEPSEEK
+        private String apiKey;
     }
 
     @Getter
@@ -29,6 +31,8 @@ public class AiDTOs {
         private List<String> diversificationAdvice;
         private List<String> recommendedActions;
         private String marketOutlook;
+        private String provider;
+        private String model;
     }
 
     @Getter
@@ -40,6 +44,8 @@ public class AiDTOs {
         @NotBlank
         private String prompt;
         private Long portfolioId;
+        private String provider; // GEMINI, OPENAI, CLAUDE, DEEPSEEK
+        private String apiKey;
     }
 
     @Getter
@@ -50,6 +56,8 @@ public class AiDTOs {
     public static class AiChatResponse {
         private String reply;
         private String timestamp;
+        private String provider;
+        private String model;
     }
 }
 

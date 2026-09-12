@@ -80,20 +80,27 @@ public class PortfolioService {
 
         Optional<Asset> existingAsset = assetRepository.findByPortfolioIdAndTicker(portfolioId, assetDTO.getTicker().toUpperCase());
 
+        BigDecimal currentPrice = fetchLivePrice(assetDTO.getTicker(), assetDTO.getCategory());
+        if (currentPrice == null) {
+            currentPrice = assetDTO.getCurrentPrice() != null ? assetDTO.getCurrentPrice() : assetDTO.getAveragePrice();
+        }
+
         Asset asset;
         if (existingAsset.isPresent()) {
             asset = existingAsset.get();
             asset.setName(assetDTO.getName());
             asset.setCategory(assetDTO.getCategory());
-            asset.setQuantity(assetDTO.getQuantity());
-            asset.setAveragePrice(assetDTO.getAveragePrice());
-            if (assetDTO.getCurrentPrice() != null) {
-                asset.setCurrentPrice(assetDTO.getCurrentPrice());
-            } else {
-                asset.setCurrentPrice(assetDTO.getAveragePrice());
-            }
+            
+            // Calculate new average price and quantity
+            BigDecimal oldTotal = asset.getQuantity().multiply(asset.getAveragePrice());
+            BigDecimal addedTotal = assetDTO.getQuantity().multiply(assetDTO.getAveragePrice());
+            BigDecimal newQuantity = asset.getQuantity().add(assetDTO.getQuantity());
+            BigDecimal newAvg = oldTotal.add(addedTotal).divide(newQuantity, 4, RoundingMode.HALF_UP);
+
+            asset.setQuantity(newQuantity);
+            asset.setAveragePrice(newAvg);
+            asset.setCurrentPrice(currentPrice);
         } else {
-            BigDecimal currentPrice = assetDTO.getCurrentPrice() != null ? assetDTO.getCurrentPrice() : assetDTO.getAveragePrice();
             asset = Asset.builder()
                     .ticker(assetDTO.getTicker().toUpperCase())
                     .name(assetDTO.getName())
@@ -107,6 +114,62 @@ public class PortfolioService {
 
         asset = assetRepository.save(asset);
         return mapToAssetDTO(asset);
+    }
+
+    private BigDecimal fetchLivePrice(String ticker, AssetCategory category) {
+        try {
+            String queryTicker = ticker.toUpperCase();
+            if ((category == AssetCategory.ACOES || category == AssetCategory.FIIS || category == AssetCategory.OPCOES) && !queryTicker.endsWith(".SA")) {
+                queryTicker += ".SA";
+            }
+            String url = "https://query1.finance.yahoo.com/v8/finance/chart/" + queryTicker;
+            java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(5)).build();
+            java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create(url))
+                    .GET()
+                    .header("User-Agent", "Mozilla/5.0")
+                    .timeout(java.time.Duration.ofSeconds(5))
+                    .build();
+            java.net.http.HttpResponse<String> resp = client.send(req, java.net.http.HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() == 200) {
+                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(resp.body());
+                com.fasterxml.jackson.databind.JsonNode result = root.path("chart").path("result");
+                if (result.isArray() && result.size() > 0) {
+                    com.fasterxml.jackson.databind.JsonNode meta = result.get(0).path("meta");
+                    if (meta.has("regularMarketPrice")) {
+                        return new BigDecimal(meta.path("regularMarketPrice").asText());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Erro ao buscar preco no Yahoo Finance para " + ticker + ": " + e.getMessage());
+        }
+        return null;
+    }
+
+    @Transactional
+    public AssetDTO updateAssetPrice(Long portfolioId, Long assetId, BigDecimal newPrice, String userEmail) {
+        User user = getUserByEmail(userEmail);
+        Portfolio portfolio = portfolioRepository.findById(portfolioId)
+                .orElseThrow(() -> new IllegalArgumentException("Carteira não encontrada."));
+
+        if (!portfolio.getUser().getId().equals(user.getId())) {
+            throw new SecurityException("Acesso negado a esta carteira.");
+        }
+
+        Asset asset = assetRepository.findById(assetId)
+                .orElseThrow(() -> new IllegalArgumentException("Ativo não encontrado."));
+
+        if (!asset.getPortfolio().getId().equals(portfolio.getId())) {
+            throw new IllegalArgumentException("Ativo não pertence a esta carteira.");
+        }
+
+        asset.setCurrentPrice(newPrice);
+        asset = assetRepository.save(asset);
+        
+        // Return without live fetching to preserve manual edit
+        return mapToAssetDTOWithFixedPrice(asset, newPrice);
     }
 
     @Transactional
@@ -193,7 +256,9 @@ public class PortfolioService {
     }
 
     private AssetDTO mapToAssetDTO(Asset asset) {
-        BigDecimal currentPrice = asset.getCurrentPrice() != null ? asset.getCurrentPrice() : asset.getAveragePrice();
+        BigDecimal livePrice = fetchLivePrice(asset.getTicker(), asset.getCategory());
+        BigDecimal currentPrice = livePrice != null ? livePrice : (asset.getCurrentPrice() != null ? asset.getCurrentPrice() : asset.getAveragePrice());
+
         BigDecimal totalValue = asset.getQuantity().multiply(currentPrice);
         BigDecimal totalCost = asset.getQuantity().multiply(asset.getAveragePrice());
         BigDecimal gainLoss = totalValue.subtract(totalCost);
@@ -211,6 +276,30 @@ public class PortfolioService {
                 .quantity(asset.getQuantity())
                 .averagePrice(asset.getAveragePrice())
                 .currentPrice(currentPrice)
+                .totalValue(totalValue)
+                .gainLoss(gainLoss)
+                .gainLossPercentage(gainLossPct)
+                .build();
+    }
+
+    private AssetDTO mapToAssetDTOWithFixedPrice(Asset asset, BigDecimal fixedPrice) {
+        BigDecimal totalValue = asset.getQuantity().multiply(fixedPrice);
+        BigDecimal totalCost = asset.getQuantity().multiply(asset.getAveragePrice());
+        BigDecimal gainLoss = totalValue.subtract(totalCost);
+
+        BigDecimal gainLossPct = BigDecimal.ZERO;
+        if (totalCost.compareTo(BigDecimal.ZERO) > 0) {
+            gainLossPct = gainLoss.divide(totalCost, 4, RoundingMode.HALF_UP).multiply(new BigDecimal("100"));
+        }
+
+        return AssetDTO.builder()
+                .id(asset.getId())
+                .ticker(asset.getTicker())
+                .name(asset.getName())
+                .category(asset.getCategory())
+                .quantity(asset.getQuantity())
+                .averagePrice(asset.getAveragePrice())
+                .currentPrice(fixedPrice)
                 .totalValue(totalValue)
                 .gainLoss(gainLoss)
                 .gainLossPercentage(gainLossPct)

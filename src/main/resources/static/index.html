@@ -21,7 +21,26 @@
     <div class="brand">
       <span>📈 Fred Invest Agent</span>
     </div>
-    <nav id="main-nav" class="hidden">
+    <nav id="main-nav" class="hidden" style="display: flex; align-items: center; gap: 1rem;">
+      <!-- Top AI Selector Bar -->
+      <div id="header-ai-box" style="display: flex; align-items: center; gap: 0.5rem; background: var(--bg-card); padding: 0.35rem 0.75rem; border-radius: 0.5rem; border: 1px solid var(--border-color);">
+        <span style="font-size: 0.85rem; font-weight: bold; color: var(--accent-blue);">🤖 IA de Mercado:</span>
+        <select id="ai-provider-select" onchange="onAiProviderChange()" style="padding: 0.35rem 0.6rem; background: var(--bg-primary); color: white; border: 1px solid var(--border-color); border-radius: 0.375rem; font-size: 0.85rem; font-weight: bold; cursor: pointer;">
+          <option value="GEMINI">⚡ Google Gemini 2.5 Flash</option>
+          <option value="OPENAI">🤖 OpenAI GPT-4o-mini</option>
+          <option value="CLAUDE">🧠 Anthropic Claude 3.5 Sonnet</option>
+          <option value="DEEPSEEK">📊 DeepSeek V3</option>
+        </select>
+        <input type="password" id="ai-api-key-input" placeholder="🔑 Gemini API Key (opcional)" style="padding: 0.35rem 0.5rem; background: var(--bg-primary); color: white; border: 1px solid var(--border-color); border-radius: 0.375rem; font-size: 0.8rem; width: 170px;" onchange="saveAiApiKey()" title="Cole sua chave da API do Google Gemini (Google AI Studio) para respostas ao vivo pela internet">
+      </div>
+
+      <!-- Logged User Info Badge -->
+      <div id="user-info-badge" style="display: flex; align-items: center; gap: 0.4rem; background: rgba(16, 185, 129, 0.15); padding: 0.35rem 0.75rem; border-radius: 0.5rem; border: 1px solid var(--accent-green); font-size: 0.85rem; font-weight: bold; color: var(--accent-green);">
+        <span>👤 Logado:</span>
+        <span id="user-display-name">Fred Gruber</span>
+        <span id="user-display-provider" class="badge" style="background: #4285F4; color: white; padding: 0.15rem 0.4rem; font-size: 0.75rem;">Google</span>
+      </div>
+
       <button id="nav-dashboard" class="active" onclick="switchTab('dashboard')">Dashboard</button>
       <button id="nav-ai" onclick="switchTab('ai')">IA Assistente</button>
       <button id="nav-openfinance" onclick="switchTab('openfinance')">Open Finance</button>
@@ -123,6 +142,7 @@
               <option value="FIIS">FIIs</option>
               <option value="RENDA_FIXA">Renda Fixa</option>
               <option value="CRIPTO">Cripto</option>
+              <option value="OPCOES">Opções</option>
             </select>
             <input type="number" step="0.0001" id="asset-qty" placeholder="Quantidade" required style="padding: 0.5rem; background: var(--bg-card); color: white; border: 1px solid var(--border-color); border-radius: 0.25rem;">
             <input type="number" step="0.01" id="asset-price" placeholder="Preço Médio (R$)" required style="padding: 0.5rem; background: var(--bg-card); color: white; border: 1px solid var(--border-color); border-radius: 0.25rem;">
@@ -166,12 +186,25 @@
 
       <!-- IA Chat Box -->
       <div class="card">
-        <h2>💬 Chat Financeiro IA</h2>
-        <div id="chat-messages" style="height: 200px; overflow-y: auto; background: var(--bg-primary); padding: 1rem; border-radius: 0.5rem; margin: 1rem 0; border: 1px solid var(--border-color);">
-          <div style="margin-bottom: 0.5rem; color: var(--accent-blue);"><strong>Assistente:</strong> Olá! Em que posso ajudar na gestão dos seus investimentos hoje?</div>
+        <div style="border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; margin-bottom: 1rem;">
+          <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem;">
+            <div>
+              <h2 style="margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+                <span>💬 Chat Financeiro IA</span>
+                <span id="active-ai-badge" class="badge" style="background: #4285F4; color: white; padding: 0.25rem 0.6rem; font-size: 0.85rem;">Google Gemini 2.5 Flash</span>
+              </h2>
+              <p id="ai-auto-select-msg" style="margin: 0.35rem 0 0 0; font-size: 0.85rem; color: var(--text-muted);">
+                💡 Como você fez login via <strong>Google</strong>, a IA <strong>Google Gemini</strong> está ativada por padrão no topo do site.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div id="chat-messages" style="height: 250px; overflow-y: auto; background: var(--bg-primary); padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; border: 1px solid var(--border-color);">
+          <div style="margin-bottom: 0.5rem; color: var(--accent-blue);"><strong>Assistente:</strong> Olá! Sou seu assistente financeiro de IA. Em que posso ajudar na gestão da sua carteira, opções (pozinhos) ou Open Finance hoje?</div>
         </div>
         <form onsubmit="handleChatSubmit(event)" style="display: flex; gap: 0.5rem;">
-          <input type="text" id="chat-input" placeholder="Pergunte sobre seus investimentos, diversificação ou Open Finance..." required style="flex: 1; padding: 0.75rem; background: var(--bg-primary); color: white; border: 1px solid var(--border-color); border-radius: 0.375rem;">
+          <input type="text" id="chat-input" placeholder="Ex: analisar pozinhos para 09/26 ou como diversificar minha carteira..." required style="flex: 1; padding: 0.75rem; background: var(--bg-primary); color: white; border: 1px solid var(--border-color); border-radius: 0.375rem;">
           <button type="submit" class="btn-primary" style="width: auto; padding: 0.75rem 1.5rem;">Enviar</button>
         </form>
       </div>

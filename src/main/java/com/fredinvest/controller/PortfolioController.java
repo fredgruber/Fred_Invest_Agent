@@ -43,6 +43,14 @@ public class PortfolioController {
         return ResponseEntity.ok(portfolioService.addOrUpdateAsset(portfolioId, assetDTO, userDetails.getUsername()));
     }
 
+    @PutMapping("/{portfolioId}/assets/{assetId}/price")
+    public ResponseEntity<AssetDTO> updateAssetPrice(@PathVariable Long portfolioId,
+                                                     @PathVariable Long assetId,
+                                                     @RequestParam java.math.BigDecimal price,
+                                                     @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(portfolioService.updateAssetPrice(portfolioId, assetId, price, userDetails.getUsername()));
+    }
+
     @DeleteMapping("/{portfolioId}/assets/{assetId}")
     public ResponseEntity<Void> deleteAsset(@PathVariable Long portfolioId,
                                             @PathVariable Long assetId,

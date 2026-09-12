@@ -5,6 +5,6 @@ public enum AssetCategory {
     FIIS,
     RENDA_FIXA,
     CRIPTO,
+    OPCOES,
     OUTROS
 }
-

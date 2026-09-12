@@ -1,5 +1,8 @@
 // State Management
 let jwtToken = localStorage.getItem('fred_jwt') || null;
+let userProvider = localStorage.getItem('fred_user_provider') || 'LOCAL';
+let userName = localStorage.getItem('fred_user_name') || 'Usuário';
+let userEmail = localStorage.getItem('fred_user_email') || '';
 let currentPortfolioId = null;
 let deferredPrompt = null;
 
@@ -7,7 +10,10 @@ let deferredPrompt = null;
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
-      .then(reg => console.log('ServiceWorker registrado:', reg.scope))
+      .then(reg => {
+        console.log('ServiceWorker registrado:', reg.scope);
+        reg.update();
+      })
       .catch(err => console.error('Erro ao registrar ServiceWorker:', err));
   });
 }
@@ -50,8 +56,15 @@ function showAppView() {
   document.getElementById('auth-view').classList.add('hidden');
   document.getElementById('app-view').classList.remove('hidden');
   document.getElementById('main-nav').classList.remove('hidden');
+
+  const nameEl = document.getElementById('user-display-name');
+  const providerEl = document.getElementById('user-display-provider');
+  if (nameEl) nameEl.innerText = userName || 'Usuário';
+  if (providerEl) providerEl.innerText = userProvider || 'LOCAL';
+
   loadDashboardData();
   loadOpenFinanceInstitutions();
+  setupAiProvider();
 }
 
 function toggleAuthTab(tab) {
@@ -89,7 +102,15 @@ async function handleLogin(e) {
 
     const data = await response.json();
     jwtToken = data.accessToken;
+    userProvider = data.provider || 'LOCAL';
+    userName = data.fullName || email.split('@')[0];
+    userEmail = data.email || email;
+
     localStorage.setItem('fred_jwt', jwtToken);
+    localStorage.setItem('fred_user_provider', userProvider);
+    localStorage.setItem('fred_user_name', userName);
+    localStorage.setItem('fred_user_email', userEmail);
+
     showAppView();
   } catch (err) {
     alert(err.message);
@@ -113,7 +134,15 @@ async function handleRegister(e) {
 
     const data = await response.json();
     jwtToken = data.accessToken;
+    userProvider = data.provider || 'LOCAL';
+    userName = data.fullName || fullName;
+    userEmail = data.email || email;
+
     localStorage.setItem('fred_jwt', jwtToken);
+    localStorage.setItem('fred_user_provider', userProvider);
+    localStorage.setItem('fred_user_name', userName);
+    localStorage.setItem('fred_user_email', userEmail);
+
     showAppView();
   } catch (err) {
     alert(err.message);
@@ -121,6 +150,9 @@ async function handleRegister(e) {
 }
 
 async function handleSocialLogin(provider) {
+  let email = provider === 'GOOGLE' ? 'fred.gruber@gmail.com' : `user_${provider.toLowerCase()}@fredinvest.com`;
+  let fullName = provider === 'GOOGLE' ? 'Fred Gruber' : `Usuário ${provider}`;
+
   try {
     const response = await fetch('/api/v1/auth/social', {
       method: 'POST',
@@ -128,8 +160,8 @@ async function handleSocialLogin(provider) {
       body: JSON.stringify({
         provider: provider,
         token: `mock_oauth_token_${provider}_` + Date.now(),
-        fullName: `Usuário ${provider}`,
-        email: `user_${provider.toLowerCase()}@fredinvest.com`
+        fullName: fullName,
+        email: email
       })
     });
 
@@ -137,7 +169,15 @@ async function handleSocialLogin(provider) {
 
     const data = await response.json();
     jwtToken = data.accessToken;
+    userProvider = data.provider || provider;
+    userName = data.fullName || fullName;
+    userEmail = data.email || email;
+
     localStorage.setItem('fred_jwt', jwtToken);
+    localStorage.setItem('fred_user_provider', userProvider);
+    localStorage.setItem('fred_user_name', userName);
+    localStorage.setItem('fred_user_email', userEmail);
+
     showAppView();
   } catch (err) {
     alert(err.message);
@@ -146,7 +186,13 @@ async function handleSocialLogin(provider) {
 
 function logout() {
   jwtToken = null;
+  userProvider = 'LOCAL';
+  userName = '';
+  userEmail = '';
   localStorage.removeItem('fred_jwt');
+  localStorage.removeItem('fred_user_provider');
+  localStorage.removeItem('fred_user_name');
+  localStorage.removeItem('fred_user_email');
   showAuthView();
 }
 
@@ -216,10 +262,36 @@ function renderAssetsTable(assets) {
       <td>${formatCurrency(a.currentPrice)}</td>
       <td><strong>${formatCurrency(a.totalValue)}</strong></td>
       <td>
-        <button onclick="deleteAsset(${a.id})" style="background: none; border: none; color: var(--accent-red); cursor: pointer;">🗑️</button>
+        <button onclick="editAssetPrice(${a.id}, '${a.ticker}')" style="background: none; border: none; color: var(--accent-blue); cursor: pointer; margin-right: 8px;" title="Editar Preço Atual">✏️</button>
+        <button onclick="deleteAsset(${a.id})" style="background: none; border: none; color: var(--accent-red); cursor: pointer;" title="Deletar Ativo">🗑️</button>
       </td>
     </tr>
   `).join('');
+}
+
+async function editAssetPrice(assetId, ticker) {
+  const newPriceStr = prompt(`Digite o novo preço atual para ${ticker} (Use ponto para decimais):`);
+  if (!newPriceStr) return;
+  const newPrice = parseFloat(newPriceStr.replace(',', '.'));
+  if (isNaN(newPrice) || newPrice < 0) {
+    alert('Preço inválido.');
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/v1/portfolios/${currentPortfolioId}/assets/${assetId}/price?price=${newPrice}`, {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${jwtToken}` }
+    });
+
+    if (res.ok) {
+      loadDashboardData();
+    } else {
+      alert('Erro ao atualizar preço.');
+    }
+  } catch (err) {
+    console.error('Erro:', err);
+  }
 }
 
 function openAddAssetModal() {
@@ -271,9 +343,68 @@ async function deleteAsset(assetId) {
 }
 
 // AI Functions
+function saveAiApiKey() {
+  const input = document.getElementById('ai-api-key-input');
+  if (input) {
+    localStorage.setItem('fred_ai_api_key', input.value.trim());
+  }
+}
+
+function setupAiProvider() {
+  const select = document.getElementById('ai-provider-select');
+  const msgEl = document.getElementById('ai-auto-select-msg');
+  const apiKeyInput = document.getElementById('ai-api-key-input');
+
+  const savedKey = localStorage.getItem('fred_ai_api_key');
+  if (savedKey && apiKeyInput) {
+    apiKeyInput.value = savedKey;
+  }
+
+  if (!select) return;
+
+  if (userProvider === 'GOOGLE') {
+    select.value = 'GEMINI';
+    if (msgEl) {
+      msgEl.innerHTML = '💡 Como você fez login via <strong>Google</strong>, a IA <strong>Google Gemini</strong> foi selecionada automaticamente!';
+    }
+  } else {
+    if (msgEl) {
+      msgEl.innerHTML = `💡 Usuário logado via <strong>${userProvider}</strong>. Selecione a IA de mercado desejada.`;
+    }
+  }
+  onAiProviderChange();
+}
+
+function onAiProviderChange() {
+  const select = document.getElementById('ai-provider-select');
+  const badge = document.getElementById('active-ai-badge');
+  if (!select || !badge) return;
+
+  const providerNames = {
+    'GEMINI': 'Google Gemini 2.5 Flash',
+    'OPENAI': 'OpenAI GPT-4o-mini',
+    'CLAUDE': 'Anthropic Claude 3.5 Sonnet',
+    'DEEPSEEK': 'DeepSeek V3'
+  };
+
+  const badgeColors = {
+    'GEMINI': '#4285F4',
+    'OPENAI': '#10a37f',
+    'CLAUDE': '#d97706',
+    'DEEPSEEK': '#8b5cf6'
+  };
+
+  const val = select.value;
+  badge.innerText = providerNames[val] || val;
+  badge.style.background = badgeColors[val] || '#2563eb';
+}
+
 async function runAiAnalysis() {
   const resultDiv = document.getElementById('ai-analysis-result');
-  resultDiv.innerHTML = '<p style="color: var(--accent-blue);">Analisando carteira com inteligência artificial...</p>';
+  const selectedProvider = document.getElementById('ai-provider-select')?.value || 'GEMINI';
+  const apiKey = localStorage.getItem('fred_ai_api_key') || document.getElementById('ai-api-key-input')?.value || '';
+
+  resultDiv.innerHTML = `<p style="color: var(--accent-blue);">Analisando carteira com inteligência artificial (${selectedProvider})...</p>`;
 
   try {
     const res = await fetch('/api/v1/ai/analyze', {
@@ -282,11 +413,14 @@ async function runAiAnalysis() {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${jwtToken}`
       },
-      body: JSON.stringify({ riskProfile: 'MODERADO' })
+      body: JSON.stringify({ riskProfile: 'MODERADO', provider: selectedProvider, apiKey: apiKey })
     });
 
     const data = await res.json();
     resultDiv.innerHTML = `
+      <div style="margin-bottom: 0.5rem;">
+        <span class="badge" style="background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-muted); font-size: 0.8rem;">Modelo: ${data.model || data.provider}</span>
+      </div>
       <div style="margin-bottom: 1rem;">
         <h4 style="color: var(--accent-blue); font-size: 1.1rem; margin-bottom: 0.5rem;">Resumo Executivo</h4>
         <p>${data.summary}</p>
@@ -315,6 +449,9 @@ async function handleChatSubmit(e) {
   const prompt = input.value.trim();
   if (!prompt) return;
 
+  const selectedProvider = document.getElementById('ai-provider-select')?.value || 'GEMINI';
+  const apiKey = localStorage.getItem('fred_ai_api_key') || document.getElementById('ai-api-key-input')?.value || '';
+
   const chatContainer = document.getElementById('chat-messages');
   chatContainer.innerHTML += `<div style="margin-bottom: 0.5rem; text-align: right;"><strong>Você:</strong> ${prompt}</div>`;
   input.value = '';
@@ -326,11 +463,11 @@ async function handleChatSubmit(e) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${jwtToken}`
       },
-      body: JSON.stringify({ prompt })
+      body: JSON.stringify({ prompt, provider: selectedProvider, apiKey: apiKey })
     });
 
     const data = await res.json();
-    chatContainer.innerHTML += `<div style="margin-bottom: 0.5rem; color: var(--accent-blue);"><strong>Assistente (${data.timestamp}):</strong> ${data.reply}</div>`;
+    chatContainer.innerHTML += `<div style="margin-bottom: 0.5rem; color: var(--accent-blue);"><strong>Assistente [${data.model || data.provider}] (${data.timestamp}):</strong> ${data.reply}</div>`;
     chatContainer.scrollTop = chatContainer.scrollHeight;
   } catch (err) {
     chatContainer.innerHTML += `<div style="margin-bottom: 0.5rem; color: var(--accent-red);">Erro ao responder.</div>`;

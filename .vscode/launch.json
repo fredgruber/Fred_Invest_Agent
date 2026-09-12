@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "name": "🚀 Executar FredInvestApplication (Spring Boot)",
+      "request": "launch",
+      "mainClass": "com.fredinvest.FredInvestApplication",
+      "projectName": "fred-invest-agent",
+      "env": {
+        "SPRING_DATASOURCE_URL": "jdbc:h2:mem:fredinvestdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE",
+        "SPRING_DATASOURCE_USERNAME": "sa",
+        "SPRING_DATASOURCE_PASSWORD": "",
+        "SPRING_JPA_HIBERNATE_DDL_AUTO": "update",
+        "JWT_SECRET": "c2VjdXJlLXJhbmRvbS-zZWNyZXQta2V5LWZvci1mcmVkLWludmVzdC1hcHAtMjAyNC1zZWN1cmUtand0LXRva2Vu"
+      }
+    }
+  ]
+}

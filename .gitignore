@@ -1,0 +1,23 @@
+# Maven build output
+target/
+*.jar
+*.war
+*.ear
+
+# Logs
+*.log
+logs/
+
+# IDE & Editor settings
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Temporary upgrade logs
+.github/modernize/

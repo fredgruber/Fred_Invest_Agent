@@ -171,3 +171,4 @@ Acesse no navegador: **`http://localhost:8080`**.
 
 Desenvolvido por **Fred Gruber**.
 - Repositório: [https://github.com/fredgruber/Fred_Invest_Agent](https://github.com/fredgruber/Fred_Invest_Agent)
+

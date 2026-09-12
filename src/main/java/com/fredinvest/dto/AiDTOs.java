@@ -3,7 +3,6 @@ package com.fredinvest.dto;
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 public class AiDTOs {

@@ -2,15 +2,28 @@
   "java.compile.nullAnalysis.mode": "automatic",
   "java.configuration.updateBuildConfiguration": "interactive",
   "java.import.maven.enabled": true,
-  "maven.executable.path": "/home/fredgruber/.sdkman/candidates/maven/current/bin/mvn",
+  "java.jdt.ls.java.home": "/home/fredgruber/.jdk/jdk-25.0.2",
+  "java.configuration.runtimes": [
+    {
+      "name": "JavaSE-25",
+      "path": "/home/fredgruber/.jdk/jdk-25.0.2",
+      "default": true
+    }
+  ],
+  "maven.executable.path": "/home/fredgruber/.sdkman/candidates/maven/3.9.16/bin/mvn",
   "maven.executable.preferMavenWrapper": false,
   "maven.terminal.customEnv": [
     {
+      "environmentVariable": "JAVA_HOME",
+      "value": "/home/fredgruber/.jdk/jdk-25.0.2"
+    },
+    {
       "environmentVariable": "PATH",
-      "value": "/home/fredgruber/.sdkman/candidates/maven/current/bin:${env:PATH}"
+      "value": "/home/fredgruber/.jdk/jdk-25.0.2/bin:/home/fredgruber/.sdkman/candidates/maven/3.9.16/bin:${env:PATH}"
     }
   ],
   "terminal.integrated.env.linux": {
-    "PATH": "/home/fredgruber/.sdkman/candidates/maven/current/bin:/home/fredgruber/.sdkman/candidates/java/current/bin:${env:PATH}"
+    "JAVA_HOME": "/home/fredgruber/.jdk/jdk-25.0.2",
+    "PATH": "/home/fredgruber/.jdk/jdk-25.0.2/bin:/home/fredgruber/.sdkman/candidates/maven/3.9.16/bin:${env:PATH}"
   }
 }

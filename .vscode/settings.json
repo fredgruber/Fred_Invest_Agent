@@ -1,4 +1,16 @@
 {
-    "java.compile.nullAnalysis.mode": "automatic",
-    "java.configuration.updateBuildConfiguration": "interactive"
+  "java.compile.nullAnalysis.mode": "automatic",
+  "java.configuration.updateBuildConfiguration": "interactive",
+  "java.import.maven.enabled": true,
+  "maven.executable.path": "/home/fredgruber/.sdkman/candidates/maven/current/bin/mvn",
+  "maven.executable.preferMavenWrapper": false,
+  "maven.terminal.customEnv": [
+    {
+      "environmentVariable": "PATH",
+      "value": "/home/fredgruber/.sdkman/candidates/maven/current/bin:${env:PATH}"
+    }
+  ],
+  "terminal.integrated.env.linux": {
+    "PATH": "/home/fredgruber/.sdkman/candidates/maven/current/bin:/home/fredgruber/.sdkman/candidates/java/current/bin:${env:PATH}"
+  }
 }

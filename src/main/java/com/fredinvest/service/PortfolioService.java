@@ -557,6 +557,113 @@ public class PortfolioService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional
+    public boolean deleteAssetTransaction(@NonNull Long portfolioId, @NonNull Long assetId, @NonNull Long transactionId, String userEmail) {
+        User user = getUserByEmail(userEmail);
+        @SuppressWarnings("null")
+        Portfolio portfolio = portfolioRepository.findById(portfolioId)
+                .orElseThrow(() -> new IllegalArgumentException("Carteira não encontrada."));
+
+        if (!portfolio.getUser().getId().equals(user.getId())) {
+            throw new SecurityException("Acesso negado a esta carteira.");
+        }
+
+        Asset asset = assetRepository.findById(assetId)
+                .orElseThrow(() -> new IllegalArgumentException("Ativo não encontrado."));
+
+        if (!asset.getPortfolio().getId().equals(portfolio.getId())) {
+            throw new IllegalArgumentException("Ativo não pertence a esta carteira.");
+        }
+
+        @SuppressWarnings("null")
+        AssetTransaction tx = assetTransactionRepository.findById(transactionId)
+                .orElseThrow(() -> new IllegalArgumentException("Transação não encontrada."));
+
+        if (!tx.getAsset().getId().equals(asset.getId())) {
+            throw new IllegalArgumentException("Transação não pertence a este ativo.");
+        }
+
+        assetTransactionRepository.delete(tx);
+
+        List<AssetTransaction> remaining = assetTransactionRepository.findByAssetIdOrderByTransactionDateDesc(assetId);
+        if (remaining.isEmpty()) {
+            assetRepository.deleteById(assetId);
+            return true; // Ativo excluído pois não restam compras
+        }
+
+        BigDecimal totalQty = BigDecimal.ZERO;
+        BigDecimal totalCost = BigDecimal.ZERO;
+        for (AssetTransaction t : remaining) {
+            totalQty = totalQty.add(t.getQuantity());
+            totalCost = totalCost.add(t.getTotalValue());
+        }
+        asset.setQuantity(totalQty);
+        if (totalQty.compareTo(BigDecimal.ZERO) > 0) {
+            asset.setAveragePrice(totalCost.divide(totalQty, 4, RoundingMode.HALF_UP));
+        }
+        assetRepository.save(asset);
+        return false;
+    }
+
+    @Transactional
+    public List<AssetTransactionDTO> updateAssetTransactionQuantity(@NonNull Long portfolioId, @NonNull Long assetId, @NonNull Long transactionId, @NonNull BigDecimal newQuantity, String userEmail) {
+        if (newQuantity.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("A quantidade deve ser maior que zero.");
+        }
+
+        User user = getUserByEmail(userEmail);
+        @SuppressWarnings("null")
+        Portfolio portfolio = portfolioRepository.findById(portfolioId)
+                .orElseThrow(() -> new IllegalArgumentException("Carteira não encontrada."));
+
+        if (!portfolio.getUser().getId().equals(user.getId())) {
+            throw new SecurityException("Acesso negado a esta carteira.");
+        }
+
+        Asset asset = assetRepository.findById(assetId)
+                .orElseThrow(() -> new IllegalArgumentException("Ativo não encontrado."));
+
+        if (!asset.getPortfolio().getId().equals(portfolio.getId())) {
+            throw new IllegalArgumentException("Ativo não pertence a esta carteira.");
+        }
+
+        @SuppressWarnings("null")
+        AssetTransaction tx = assetTransactionRepository.findById(transactionId)
+                .orElseThrow(() -> new IllegalArgumentException("Transação não encontrada."));
+
+        if (!tx.getAsset().getId().equals(asset.getId())) {
+            throw new IllegalArgumentException("Transação não pertence a este ativo.");
+        }
+
+        tx.setQuantity(newQuantity);
+        tx.setTotalValue(newQuantity.multiply(tx.getPrice()));
+        assetTransactionRepository.save(tx);
+
+        List<AssetTransaction> allTx = assetTransactionRepository.findByAssetIdOrderByTransactionDateDesc(assetId);
+        BigDecimal totalQty = BigDecimal.ZERO;
+        BigDecimal totalCost = BigDecimal.ZERO;
+        for (AssetTransaction t : allTx) {
+            totalQty = totalQty.add(t.getQuantity());
+            totalCost = totalCost.add(t.getTotalValue());
+        }
+        asset.setQuantity(totalQty);
+        if (totalQty.compareTo(BigDecimal.ZERO) > 0) {
+            asset.setAveragePrice(totalCost.divide(totalQty, 4, RoundingMode.HALF_UP));
+        }
+        assetRepository.save(asset);
+
+        return allTx.stream()
+                .map(t -> new AssetTransactionDTO(
+                        t.getId(),
+                        asset.getId(),
+                        t.getQuantity(),
+                        t.getPrice(),
+                        t.getTotalValue(),
+                        t.getTransactionDate()
+                ))
+                .collect(Collectors.toList());
+    }
+
     @SuppressWarnings("null")
 	public PortfolioSummaryDTO getPortfolioSummary(String userEmail) {
         List<PortfolioResponse> portfolios = getUserPortfolios(userEmail);

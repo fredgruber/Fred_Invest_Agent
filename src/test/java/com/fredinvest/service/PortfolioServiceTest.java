@@ -1,11 +1,13 @@
 package com.fredinvest.service;
 
+import com.fredinvest.dto.AssetTransactionDTO;
 import com.fredinvest.dto.PortfolioDTOs.AssetDTO;
 import com.fredinvest.dto.PortfolioDTOs.PortfolioRequest;
 import com.fredinvest.dto.PortfolioDTOs.PortfolioResponse;
 import com.fredinvest.dto.PortfolioDTOs.PortfolioSummaryDTO;
 import com.fredinvest.model.Asset;
 import com.fredinvest.model.AssetCategory;
+import com.fredinvest.model.AssetTransaction;
 import com.fredinvest.model.Portfolio;
 import com.fredinvest.model.User;
 import com.fredinvest.repository.AssetRepository;
@@ -170,6 +172,84 @@ class PortfolioServiceTest {
         assertEquals("BOVA11", PortfolioService.determineUnderlyingTicker("BOVAW120", null));
         assertEquals("VALE3", PortfolioService.determineUnderlyingTicker("VALEA800", null));
         assertEquals("ITUB4", PortfolioService.determineUnderlyingTicker("ITUBJ350", null));
+    }
+
+    @Test
+    void deleteAssetTransactionRecalculatesAssetQuantityAndAveragePrice() {
+        User user = user();
+        Portfolio portfolio = portfolio(user);
+        Asset asset = Asset.builder()
+                .id(1L)
+                .ticker("PETR4")
+                .portfolio(portfolio)
+                .quantity(new BigDecimal("150"))
+                .averagePrice(new BigDecimal("20"))
+                .build();
+        AssetTransaction tx1 = AssetTransaction.builder()
+                .id(101L)
+                .asset(asset)
+                .quantity(new BigDecimal("100"))
+                .price(new BigDecimal("10"))
+                .totalValue(new BigDecimal("1000"))
+                .build();
+        AssetTransaction tx2 = AssetTransaction.builder()
+                .id(102L)
+                .asset(asset)
+                .quantity(new BigDecimal("50"))
+                .price(new BigDecimal("20"))
+                .totalValue(new BigDecimal("1000"))
+                .build();
+
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(portfolioRepository.findById(portfolio.getId())).thenReturn(Optional.of(portfolio));
+        when(assetRepository.findById(asset.getId())).thenReturn(Optional.of(asset));
+        when(assetTransactionRepository.findById(tx2.getId())).thenReturn(Optional.of(tx2));
+        when(assetTransactionRepository.findByAssetIdOrderByTransactionDateDesc(asset.getId()))
+                .thenReturn(List.of(tx1));
+
+        boolean assetDeleted = portfolioService.deleteAssetTransaction(portfolio.getId(), asset.getId(), tx2.getId(), user.getEmail());
+
+        assertFalse(assetDeleted);
+        assertEquals(new BigDecimal("100"), asset.getQuantity());
+        assertEquals(new BigDecimal("10.0000"), asset.getAveragePrice());
+        verify(assetTransactionRepository).delete(tx2);
+        verify(assetRepository).save(asset);
+    }
+
+    @Test
+    void updateAssetTransactionQuantityRecalculatesAssetTotals() {
+        User user = user();
+        Portfolio portfolio = portfolio(user);
+        Asset asset = Asset.builder()
+                .id(1L)
+                .ticker("PETR4")
+                .portfolio(portfolio)
+                .quantity(new BigDecimal("100"))
+                .averagePrice(new BigDecimal("10"))
+                .build();
+        AssetTransaction tx = AssetTransaction.builder()
+                .id(101L)
+                .asset(asset)
+                .quantity(new BigDecimal("100"))
+                .price(new BigDecimal("10"))
+                .totalValue(new BigDecimal("1000"))
+                .build();
+
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(portfolioRepository.findById(portfolio.getId())).thenReturn(Optional.of(portfolio));
+        when(assetRepository.findById(asset.getId())).thenReturn(Optional.of(asset));
+        when(assetTransactionRepository.findById(tx.getId())).thenReturn(Optional.of(tx));
+        when(assetTransactionRepository.findByAssetIdOrderByTransactionDateDesc(asset.getId()))
+                .thenReturn(List.of(tx));
+
+        List<AssetTransactionDTO> result = portfolioService.updateAssetTransactionQuantity(
+                portfolio.getId(), asset.getId(), tx.getId(), new BigDecimal("200"), user.getEmail());
+
+        assertEquals(1, result.size());
+        assertEquals(new BigDecimal("200"), tx.getQuantity());
+        assertEquals(new BigDecimal("2000.00"), tx.getTotalValue().setScale(2));
+        assertEquals(new BigDecimal("200"), asset.getQuantity());
+        verify(assetRepository).save(asset);
     }
 
     private User user() {

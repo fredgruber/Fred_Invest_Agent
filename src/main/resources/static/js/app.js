@@ -375,8 +375,7 @@ function renderAssetsTable(assets) {
       </td>
       <td><strong>${formatCurrency(a.totalValue)}</strong></td>
       <td>
-        <button onclick="openAssetHistoryModal(${a.id})" style="background: none; border: none; font-size: 1.1rem; cursor: pointer; margin-right: 8px;" title="Ver Histórico de Compras">📜</button>
-        <button onclick="deleteAsset(${a.id})" style="background: none; border: none; font-size: 1.1rem; color: var(--accent-red); cursor: pointer;" title="Deletar Ativo">🗑️</button>
+        <button onclick="openAssetHistoryModal(${a.id})" style="background: none; border: none; font-size: 1.1rem; cursor: pointer;" title="Ver Histórico de Compras">📜</button>
       </td>
     </tr>
   `).join('');
@@ -402,7 +401,7 @@ async function openAssetHistoryModal(assetId) {
   if (titleEl) titleEl.innerText = `📜 Histórico de Compras: ${ticker}`;
   if (subtitleEl) subtitleEl.innerText = subtitle;
   if (tbody) {
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Carregando histórico de compras...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Carregando histórico de compras...</td></tr>';
   }
   if (tfoot) tfoot.innerHTML = '';
   if (modal) modal.classList.remove('hidden');
@@ -418,7 +417,7 @@ async function openAssetHistoryModal(assetId) {
 
     const history = await res.json();
     if (!history || history.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Nenhuma transação de compra registrada para este ativo.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Nenhuma transação de compra registrada para este ativo.</td></tr>';
       return;
     }
 
@@ -434,9 +433,13 @@ async function openAssetHistoryModal(assetId) {
       return `
         <tr>
           <td style="padding: 0.5rem;">${dateStr}</td>
-          <td style="padding: 0.5rem; text-align: right;">${h.quantity}</td>
+          <td style="padding: 0.5rem; text-align: right;"><strong>${h.quantity}</strong></td>
           <td style="padding: 0.5rem; text-align: right;">${formatCurrency(h.price)}</td>
           <td style="padding: 0.5rem; text-align: right;"><strong>${formatCurrency(h.totalValue)}</strong></td>
+          <td style="padding: 0.5rem; text-align: center; white-space: nowrap;">
+            <button onclick="handleEditTransactionQty(${assetId}, ${h.id}, ${h.quantity})" style="background: none; border: none; font-size: 1.05rem; cursor: pointer; margin-right: 6px;" title="Alterar Quantidade">✏️</button>
+            <button onclick="handleDeleteTransaction(${assetId}, ${h.id})" style="background: none; border: none; font-size: 1.05rem; color: var(--accent-red); cursor: pointer;" title="Excluir Compra">🗑️</button>
+          </td>
         </tr>
       `;
     }).join('');
@@ -446,16 +449,71 @@ async function openAssetHistoryModal(assetId) {
         <tr>
           <td style="padding: 0.5rem;">Total Acumulado</td>
           <td style="padding: 0.5rem; text-align: right;">${totalQtd}</td>
-          <td style="padding: 0.5rem; text-align: right;">-</td>
+          <td style="padding: 0.5rem; text-align: right; color: var(--text-muted);">-</td>
           <td style="padding: 0.5rem; text-align: right; color: var(--accent-green);">${formatCurrency(totalInvestido)}</td>
+          <td style="padding: 0.5rem;"></td>
         </tr>
       `;
     }
   } catch (err) {
     console.error('Erro ao carregar histórico:', err);
     if (tbody) {
-      tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--accent-red); padding: 1.5rem;">Erro ao carregar histórico de compras.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--accent-red); padding: 1.5rem;">Erro ao carregar histórico de compras.</td></tr>';
     }
+  }
+}
+
+async function handleEditTransactionQty(assetId, transactionId, currentQty) {
+  const newQtyStr = prompt(`Informe a nova quantidade para esta compra (atual: ${currentQty}):`, currentQty);
+  if (newQtyStr === null) return;
+  const newQty = parseFloat(newQtyStr);
+  if (isNaN(newQty) || newQty <= 0) {
+    alert('Quantidade inválida. Para remover o registro, utilize o botão de excluir (🗑️).');
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/v1/portfolios/${currentPortfolioId}/assets/${assetId}/history/${transactionId}?quantity=${newQty}`, {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${jwtToken}` }
+    });
+
+    if (res.ok) {
+      await loadDashboardData();
+      await openAssetHistoryModal(assetId);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert(err.message || 'Erro ao alterar quantidade.');
+    }
+  } catch (err) {
+    alert('Erro ao alterar quantidade: ' + err.message);
+  }
+}
+
+async function handleDeleteTransaction(assetId, transactionId) {
+  if (!confirm('Deseja excluir esta linha do histórico de compras?')) return;
+
+  try {
+    const res = await fetch(`/api/v1/portfolios/${currentPortfolioId}/assets/${assetId}/history/${transactionId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${jwtToken}` }
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      await loadDashboardData();
+      if (data.assetDeleted) {
+        closeAssetHistoryModal();
+        alert('Todas as compras foram excluídas. O ativo foi removido da carteira.');
+      } else {
+        await openAssetHistoryModal(assetId);
+      }
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert(err.message || 'Erro ao excluir compra.');
+    }
+  } catch (err) {
+    alert('Erro ao excluir compra: ' + err.message);
   }
 }
 

@@ -68,6 +68,28 @@ public class PortfolioController {
         return ResponseEntity.ok(portfolioService.getAssetPurchaseHistory(portfolioId, assetId, userDetails.getUsername()));
     }
 
+    @DeleteMapping("/{portfolioId}/assets/{assetId}/history/{transactionId}")
+    public ResponseEntity<java.util.Map<String, Object>> deleteAssetTransaction(
+            @PathVariable @NonNull Long portfolioId,
+            @PathVariable @NonNull Long assetId,
+            @PathVariable @NonNull Long transactionId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        boolean assetDeleted = portfolioService.deleteAssetTransaction(portfolioId, assetId, transactionId, userDetails.getUsername());
+        java.util.Map<String, Object> resp = new java.util.HashMap<>();
+        resp.put("assetDeleted", assetDeleted);
+        return ResponseEntity.ok(resp);
+    }
+
+    @PutMapping("/{portfolioId}/assets/{assetId}/history/{transactionId}")
+    public ResponseEntity<java.util.List<com.fredinvest.dto.AssetTransactionDTO>> updateAssetTransactionQuantity(
+            @PathVariable @NonNull Long portfolioId,
+            @PathVariable @NonNull Long assetId,
+            @PathVariable @NonNull Long transactionId,
+            @RequestParam @NonNull java.math.BigDecimal quantity,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(portfolioService.updateAssetTransactionQuantity(portfolioId, assetId, transactionId, quantity, userDetails.getUsername()));
+    }
+
     @PostMapping("/{portfolioId}/assets")
     public ResponseEntity<AssetDTO> addOrUpdateAsset(@PathVariable @NonNull Long portfolioId,
                                                      @Valid @RequestBody AssetDTO assetDTO,

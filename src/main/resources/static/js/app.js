@@ -4,6 +4,7 @@ let userProvider = localStorage.getItem('fred_user_provider') || 'LOCAL';
 let userName = localStorage.getItem('fred_user_name') || 'Usuário';
 let userEmail = localStorage.getItem('fred_user_email') || '';
 let currentPortfolioId = null;
+let currentAssets = [];
 let deferredPrompt = null;
 
 // PWA Service Worker Registration
@@ -52,9 +53,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const payload = JSON.parse(payloadJson);
       userEmail = payload.sub || '';
       userName = payload.name || (userEmail.includes('@') ? userEmail.split('@')[0] : 'Usuário');
+      userProvider = 'GOOGLE';
+      localStorage.setItem('fred_user_provider', userProvider);
       localStorage.setItem('fred_user_email', userEmail);
       localStorage.setItem('fred_user_name', userName);
     } catch (e) {
+      userProvider = 'GOOGLE';
+      localStorage.setItem('fred_user_provider', userProvider);
       console.warn('Não foi possível extrair dados do token JWT:', e);
     }
 
@@ -330,6 +335,7 @@ async function loadDashboardData() {
 }
 
 function renderAssetsTable(assets) {
+  currentAssets = assets || [];
   const tbody = document.getElementById('assets-table-body');
   if (!assets || assets.length === 0) {
     tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-muted);">Nenhum ativo cadastrado ainda.</td></tr>';
@@ -338,43 +344,163 @@ function renderAssetsTable(assets) {
 
   tbody.innerHTML = assets.map(a => `
     <tr>
-      <td><strong>${a.ticker}</strong></td>
+      <td>
+        <div style="display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap;">
+          <strong>${a.ticker}</strong>
+          ${a.category === 'OPCOES' && a.underlyingPrice != null ? `
+            <span style="font-size: 0.82rem; color: #34d399; font-weight: 600;" title="Preço atual da ação (${a.underlyingTicker || 'Ação Base'})">
+              (${a.underlyingTicker ? a.underlyingTicker + ': ' : 'Ação: '}${formatCurrency(a.underlyingPrice)})
+            </span>
+          ` : ''}
+        </div>
+        ${a.category === 'OPCOES' && (a.strikePrice != null || a.expirationDate || a.underlyingPrice != null) ? `
+          <div style="margin-top: 0.25rem; font-size: 0.75rem; display: flex; gap: 0.35rem; flex-wrap: wrap;">
+            ${a.underlyingPrice != null ? `<span style="background: rgba(16, 185, 129, 0.15); color: #34d399; padding: 0.1rem 0.35rem; border-radius: 0.25rem; font-weight: 500;">Ação ${a.underlyingTicker ? `(${a.underlyingTicker})` : ''}: ${formatCurrency(a.underlyingPrice)}</span>` : ''}
+            ${a.strikePrice != null ? `<span style="background: rgba(96, 165, 250, 0.15); color: #93c5fd; padding: 0.1rem 0.35rem; border-radius: 0.25rem; font-weight: 500;">Strike: ${formatCurrency(a.strikePrice)}</span>` : ''}
+            ${a.expirationDate ? `<span style="background: rgba(167, 139, 250, 0.15); color: #c4b5fd; padding: 0.1rem 0.35rem; border-radius: 0.25rem; font-weight: 500;">Venc: ${formatDateOnly(a.expirationDate)}</span>` : ''}
+          </div>
+        ` : ''}
+      </td>
       <td>${a.name}</td>
       <td><span class="badge">${a.category}</span></td>
       <td>${a.quantity}</td>
       <td>${formatCurrency(a.averagePrice)}</td>
-      <td>${formatCurrency(a.currentPrice)}</td>
+      <td>
+        <div>${formatCurrency(a.currentPrice)}</div>
+        ${a.category === 'OPCOES' && a.underlyingPrice != null ? `
+          <div style="font-size: 0.75rem; color: #34d399; margin-top: 0.15rem;" title="Preço atual da ação base">
+            ${a.underlyingTicker ? a.underlyingTicker : 'Ação'}: ${formatCurrency(a.underlyingPrice)}
+          </div>
+        ` : ''}
+      </td>
       <td><strong>${formatCurrency(a.totalValue)}</strong></td>
       <td>
-        <button onclick="editAssetPrice(${a.id}, '${a.ticker}')" style="background: none; border: none; color: var(--accent-blue); cursor: pointer; margin-right: 8px;" title="Editar Preço Atual">✏️</button>
-        <button onclick="deleteAsset(${a.id})" style="background: none; border: none; color: var(--accent-red); cursor: pointer;" title="Deletar Ativo">🗑️</button>
+        <button onclick="openAssetHistoryModal(${a.id})" style="background: none; border: none; font-size: 1.1rem; cursor: pointer; margin-right: 8px;" title="Ver Histórico de Compras">📜</button>
+        <button onclick="deleteAsset(${a.id})" style="background: none; border: none; font-size: 1.1rem; color: var(--accent-red); cursor: pointer;" title="Deletar Ativo">🗑️</button>
       </td>
     </tr>
   `).join('');
 }
 
-async function editAssetPrice(assetId, ticker) {
-  const newPriceStr = prompt(`Digite o novo preço atual para ${ticker} (Use ponto para decimais):`);
-  if (!newPriceStr) return;
-  const newPrice = parseFloat(newPriceStr.replace(',', '.'));
-  if (isNaN(newPrice) || newPrice < 0) {
-    alert('Preço inválido.');
-    return;
+async function openAssetHistoryModal(assetId) {
+  const asset = currentAssets.find(a => a.id === assetId);
+  const ticker = asset ? asset.ticker : '';
+  let subtitle = asset ? (asset.name || '') : '';
+  if (asset && asset.category === 'OPCOES' && (asset.strikePrice != null || asset.expirationDate || asset.underlyingPrice != null)) {
+    const details = [];
+    if (asset.underlyingPrice != null) details.push(`Ação (${asset.underlyingTicker || 'Base'}): ${formatCurrency(asset.underlyingPrice)}`);
+    if (asset.strikePrice != null) details.push(`Strike: ${formatCurrency(asset.strikePrice)}`);
+    if (asset.expirationDate) details.push(`Vencimento: ${formatDateOnly(asset.expirationDate)}`);
+    subtitle += ` (${details.join(' • ')})`;
   }
+  const modal = document.getElementById('asset-history-modal');
+  const titleEl = document.getElementById('asset-history-title');
+  const subtitleEl = document.getElementById('asset-history-subtitle');
+  const tbody = document.getElementById('asset-history-table-body');
+  const tfoot = document.getElementById('asset-history-table-foot');
+
+  if (titleEl) titleEl.innerText = `📜 Histórico de Compras: ${ticker}`;
+  if (subtitleEl) subtitleEl.innerText = subtitle;
+  if (tbody) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Carregando histórico de compras...</td></tr>';
+  }
+  if (tfoot) tfoot.innerHTML = '';
+  if (modal) modal.classList.remove('hidden');
 
   try {
-    const res = await fetch(`/api/v1/portfolios/${currentPortfolioId}/assets/${assetId}/price?price=${newPrice}`, {
-      method: 'PUT',
+    const res = await fetch(`/api/v1/portfolios/${currentPortfolioId}/assets/${assetId}/history`, {
       headers: { 'Authorization': `Bearer ${jwtToken}` }
     });
 
-    if (res.ok) {
-      loadDashboardData();
-    } else {
-      alert('Erro ao atualizar preço.');
+    if (!res.ok) {
+      throw new Error('Falha ao buscar histórico');
+    }
+
+    const history = await res.json();
+    if (!history || history.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Nenhuma transação de compra registrada para este ativo.</td></tr>';
+      return;
+    }
+
+    let totalQtd = 0;
+    let totalInvestido = 0;
+
+    tbody.innerHTML = history.map(h => {
+      const d = h.transactionDate ? new Date(h.transactionDate) : null;
+      const dateStr = d && !isNaN(d) ? d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '-';
+      totalQtd += Number(h.quantity || 0);
+      totalInvestido += Number(h.totalValue || 0);
+
+      return `
+        <tr>
+          <td style="padding: 0.5rem;">${dateStr}</td>
+          <td style="padding: 0.5rem; text-align: right;">${h.quantity}</td>
+          <td style="padding: 0.5rem; text-align: right;">${formatCurrency(h.price)}</td>
+          <td style="padding: 0.5rem; text-align: right;"><strong>${formatCurrency(h.totalValue)}</strong></td>
+        </tr>
+      `;
+    }).join('');
+
+    if (tfoot) {
+      tfoot.innerHTML = `
+        <tr>
+          <td style="padding: 0.5rem;">Total Acumulado</td>
+          <td style="padding: 0.5rem; text-align: right;">${totalQtd}</td>
+          <td style="padding: 0.5rem; text-align: right;">-</td>
+          <td style="padding: 0.5rem; text-align: right; color: var(--accent-green);">${formatCurrency(totalInvestido)}</td>
+        </tr>
+      `;
     }
   } catch (err) {
-    console.error('Erro:', err);
+    console.error('Erro ao carregar histórico:', err);
+    if (tbody) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--accent-red); padding: 1.5rem;">Erro ao carregar histórico de compras.</td></tr>';
+    }
+  }
+}
+
+function closeAssetHistoryModal() {
+  const modal = document.getElementById('asset-history-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
+let tickerQuoteDebounceTimer = null;
+
+function onCategoryChange() {
+  const catSelect = document.getElementById('asset-category');
+  const optFields = document.getElementById('option-fields');
+  if (catSelect && optFields) {
+    optFields.style.display = catSelect.value === 'OPCOES' ? 'flex' : 'none';
+  }
+  checkTickerQuote();
+}
+
+function onTickerInput() {
+  const tickerInput = document.getElementById('asset-ticker');
+  if (!tickerInput) return;
+  const ticker = tickerInput.value.trim().toUpperCase();
+  const catSelect = document.getElementById('asset-category');
+  const optFields = document.getElementById('option-fields');
+
+  if (catSelect && ticker) {
+    // Auto-detecta tipo de ativo dinamicamente pela B3 / Ticker:
+    if (/^[A-Z]{4}[A-Z][0-9A-Z]+$/.test(ticker)) {
+      catSelect.value = 'OPCOES';
+      if (optFields) optFields.style.display = 'flex';
+    } else if (/^[A-Z]{4}11[B]?$/.test(ticker)) {
+      catSelect.value = 'FIIS';
+      if (optFields) optFields.style.display = 'none';
+    } else if (/^[A-Z]{4}[3-6]$/.test(ticker)) {
+      catSelect.value = 'ACOES';
+      if (optFields) optFields.style.display = 'none';
+    }
+  }
+
+  clearTimeout(tickerQuoteDebounceTimer);
+  if (ticker.length >= 4) {
+    tickerQuoteDebounceTimer = setTimeout(() => {
+      checkTickerQuote();
+    }, 500);
   }
 }
 
@@ -384,16 +510,30 @@ function clearAddAssetForm() {
   const tickerInput = document.getElementById('asset-ticker');
   const nameInput = document.getElementById('asset-name');
   const catInput = document.getElementById('asset-category');
+  const dateInput = document.getElementById('asset-date');
   const qtyInput = document.getElementById('asset-qty');
   const priceInput = document.getElementById('asset-price');
+  const strikeInput = document.getElementById('asset-strike');
+  const expInput = document.getElementById('asset-expiration');
+  const optFields = document.getElementById('option-fields');
+  const optUnderlyingInfo = document.getElementById('option-underlying-info');
+  const optUnderlyingText = document.getElementById('option-underlying-text');
+
   if (tickerInput) tickerInput.value = '';
   if (nameInput) nameInput.value = '';
   if (catInput) catInput.value = 'ACOES';
+  if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
   if (qtyInput) qtyInput.value = '';
   if (priceInput) {
     priceInput.value = '';
     priceInput.placeholder = 'Preço Médio (R$)';
   }
+  if (strikeInput) strikeInput.value = '';
+  if (expInput) expInput.value = '';
+  if (optFields) optFields.style.display = 'none';
+  if (optUnderlyingInfo) optUnderlyingInfo.style.display = 'none';
+  if (optUnderlyingText) optUnderlyingText.innerText = 'Ação Base: -';
+
   const badge = document.getElementById('ticker-quote-badge');
   if (badge) {
     badge.style.display = 'none';
@@ -407,6 +547,10 @@ function openAddAssetModal() {
   if (isHidden) {
     clearAddAssetForm();
     box.classList.remove('hidden');
+    const dateInput = document.getElementById('asset-date');
+    if (dateInput && !dateInput.value) {
+      dateInput.value = new Date().toISOString().split('T')[0];
+    }
     const tickerInput = document.getElementById('asset-ticker');
     if (tickerInput) tickerInput.focus();
   } else {
@@ -419,25 +563,39 @@ function closeAddAssetModal() {
   document.getElementById('add-asset-box').classList.add('hidden');
 }
 
+let lastQuoteUnderlyingTicker = null;
+
 async function checkTickerQuote() {
   const tickerInput = document.getElementById('asset-ticker');
   if (!tickerInput) return;
   const ticker = tickerInput.value.trim().toUpperCase();
   const catSelect = document.getElementById('asset-category');
-  let category = catSelect?.value || 'ACOES';
-  const badge = document.getElementById('ticker-quote-badge');
-  if (!badge) return;
+  const optFields = document.getElementById('option-fields');
+  const optUnderlyingInfo = document.getElementById('option-underlying-info');
+  const optUnderlyingText = document.getElementById('option-underlying-text');
 
   if (!ticker || ticker.length < 3) {
-    badge.style.display = 'none';
+    const badge = document.getElementById('ticker-quote-badge');
+    if (badge) badge.style.display = 'none';
+    if (optUnderlyingInfo) optUnderlyingInfo.style.display = 'none';
     return;
   }
 
-  // Auto-detecta Opção brasileira (ex: VALEJ854, PETRJ300) se ainda não estiver selecionada
-  if (/^[A-Z]{4}[A-Z][0-9A-Z]+$/.test(ticker) && catSelect && catSelect.value !== 'OPCOES') {
+  // Auto-detecta Opções, FIIs ou Ações brasileiras
+  if (/^[A-Z]{4}[A-Z][0-9A-Z]+$/.test(ticker) && catSelect) {
     catSelect.value = 'OPCOES';
-    category = 'OPCOES';
+    if (optFields) optFields.style.display = 'flex';
+  } else if (/^[A-Z]{4}11[B]?$/.test(ticker) && catSelect) {
+    catSelect.value = 'FIIS';
+    if (optFields) optFields.style.display = 'none';
+  } else if (/^[A-Z]{4}[3-6]$/.test(ticker) && catSelect) {
+    catSelect.value = 'ACOES';
+    if (optFields) optFields.style.display = 'none';
   }
+
+  const category = catSelect?.value || 'ACOES';
+  const badge = document.getElementById('ticker-quote-badge');
+  if (!badge) return;
 
   badge.style.display = 'inline-block';
   badge.style.background = 'var(--bg-card)';
@@ -454,7 +612,44 @@ async function checkTickerQuote() {
         badge.style.background = '#065f46';
         badge.style.color = '#34d399';
         const sourceName = data.source || 'Ao Vivo';
-        badge.innerText = `${sourceName}: ${formatCurrency(data.price)}`;
+        let badgeText = `${sourceName}: ${formatCurrency(data.price)}`;
+        if (data.underlyingPrice != null) {
+          badgeText += ` | Ação ${data.underlyingTicker ? '(' + data.underlyingTicker + ')' : ''}: ${formatCurrency(data.underlyingPrice)}`;
+        }
+        badge.innerText = badgeText;
+
+        lastQuoteUnderlyingTicker = data.underlyingTicker || null;
+
+        // Atualiza categoria automaticamente caso a B3/servidor tenha retornado uma categoria detectada
+        if (data.category && catSelect) {
+          catSelect.value = data.category;
+          if (optFields) {
+            optFields.style.display = data.category === 'OPCOES' ? 'flex' : 'none';
+          }
+        }
+
+        // Auto-preenche Strike e Vencimento caso encontrados
+        const strikeInput = document.getElementById('asset-strike');
+        if (strikeInput && data.strikePrice != null && !strikeInput.value) {
+          strikeInput.value = data.strikePrice;
+        }
+        const expInput = document.getElementById('asset-expiration');
+        if (expInput && data.expirationDate && !expInput.value) {
+          expInput.value = data.expirationDate;
+        }
+        if ((data.strikePrice != null || data.expirationDate || (catSelect && catSelect.value === 'OPCOES')) && optFields) {
+          optFields.style.display = 'flex';
+        }
+
+        // Exibe informação da ação base no box de opções
+        if (optUnderlyingInfo && optUnderlyingText) {
+          if (data.underlyingPrice != null) {
+            optUnderlyingInfo.style.display = 'flex';
+            optUnderlyingText.innerText = `📈 Ação Base: ${data.underlyingTicker || ''} — Cotação Atual: ${formatCurrency(data.underlyingPrice)}`;
+          } else {
+            optUnderlyingInfo.style.display = 'none';
+          }
+        }
 
         // Preenche o nome do ativo se o backend retornar e o input estiver vazio ou igual ao ticker
         const nameInput = document.getElementById('asset-name');
@@ -470,13 +665,16 @@ async function checkTickerQuote() {
         badge.style.background = '#374151';
         badge.style.color = '#9ca3af';
         badge.innerText = `Cotação ao vivo não encontrada`;
+        if (optUnderlyingInfo) optUnderlyingInfo.style.display = 'none';
       }
     } else {
       badge.style.display = 'none';
+      if (optUnderlyingInfo) optUnderlyingInfo.style.display = 'none';
     }
   } catch (err) {
     console.debug('Erro ao consultar cotação:', err);
     badge.style.display = 'none';
+    if (optUnderlyingInfo) optUnderlyingInfo.style.display = 'none';
   }
 }
 
@@ -504,8 +702,13 @@ async function handleAddAsset(e) {
   const ticker = document.getElementById('asset-ticker').value.trim().toUpperCase();
   const name = document.getElementById('asset-name').value.trim();
   const category = document.getElementById('asset-category').value;
+  const purchaseDate = document.getElementById('asset-date')?.value || null;
   const quantity = parseFloat(document.getElementById('asset-qty').value);
   const averagePrice = parseFloat(document.getElementById('asset-price').value);
+
+  const strikeVal = document.getElementById('asset-strike')?.value;
+  const strikePrice = strikeVal ? parseFloat(strikeVal) : null;
+  const expirationDate = document.getElementById('asset-expiration')?.value || null;
 
   try {
     const res = await fetch(`/api/v1/portfolios/${currentPortfolioId}/assets`, {
@@ -514,7 +717,17 @@ async function handleAddAsset(e) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${jwtToken}`
       },
-      body: JSON.stringify({ ticker, name, category, quantity, averagePrice })
+      body: JSON.stringify({
+        ticker,
+        name,
+        category,
+        purchaseDate,
+        quantity,
+        averagePrice,
+        strikePrice,
+        expirationDate,
+        underlyingTicker: lastQuoteUnderlyingTicker || null
+      })
     });
 
     if (res.ok) {
@@ -756,5 +969,15 @@ async function loadConsents() {
 function formatCurrency(val) {
   if (val === undefined || val === null) return 'R$ 0,00';
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+}
+
+function formatDateOnly(dateStr) {
+  if (!dateStr) return '-';
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  const d = new Date(dateStr);
+  return !isNaN(d) ? d.toLocaleDateString('pt-BR') : dateStr;
 }
 

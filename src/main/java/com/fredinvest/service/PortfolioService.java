@@ -1,11 +1,14 @@
 package com.fredinvest.service;
 
+import com.fredinvest.dto.AssetTransactionDTO;
 import com.fredinvest.dto.PortfolioDTOs.*;
 import com.fredinvest.model.Asset;
 import com.fredinvest.model.AssetCategory;
+import com.fredinvest.model.AssetTransaction;
 import com.fredinvest.model.Portfolio;
 import com.fredinvest.model.User;
 import com.fredinvest.repository.AssetRepository;
+import com.fredinvest.repository.AssetTransactionRepository;
 import com.fredinvest.repository.PortfolioRepository;
 import com.fredinvest.repository.UserRepository;
 
@@ -15,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -24,11 +28,13 @@ public class PortfolioService {
     private final PortfolioRepository portfolioRepository;
     private final AssetRepository assetRepository;
     private final UserRepository userRepository;
+    private final AssetTransactionRepository assetTransactionRepository;
 
-    public PortfolioService(PortfolioRepository portfolioRepository, AssetRepository assetRepository, UserRepository userRepository) {
+    public PortfolioService(PortfolioRepository portfolioRepository, AssetRepository assetRepository, UserRepository userRepository, AssetTransactionRepository assetTransactionRepository) {
         this.portfolioRepository = portfolioRepository;
         this.assetRepository = assetRepository;
         this.userRepository = userRepository;
+        this.assetTransactionRepository = assetTransactionRepository;
     }
 
     private User getUserByEmail(String email) {
@@ -95,6 +101,17 @@ public class PortfolioService {
             asset = existingAsset.get();
             asset.setName(assetDTO.getName());
             asset.setCategory(assetDTO.getCategory());
+            if (assetDTO.getStrikePrice() != null) {
+                asset.setStrikePrice(assetDTO.getStrikePrice());
+            }
+            if (assetDTO.getExpirationDate() != null) {
+                asset.setExpirationDate(assetDTO.getExpirationDate());
+            }
+            if (assetDTO.getUnderlyingTicker() != null) {
+                asset.setUnderlyingTicker(assetDTO.getUnderlyingTicker());
+            } else if (asset.getCategory() == AssetCategory.OPCOES && asset.getUnderlyingTicker() == null) {
+                asset.setUnderlyingTicker(determineUnderlyingTicker(asset.getTicker(), null));
+            }
             
             // Calculate new average price and quantity
             BigDecimal oldTotal = asset.getQuantity().multiply(asset.getAveragePrice());
@@ -106,6 +123,10 @@ public class PortfolioService {
             asset.setAveragePrice(newAvg);
             asset.setCurrentPrice(currentPrice);
         } else {
+            String underlyingTicker = assetDTO.getUnderlyingTicker() != null
+                    ? assetDTO.getUnderlyingTicker()
+                    : (assetDTO.getCategory() == AssetCategory.OPCOES ? determineUnderlyingTicker(assetDTO.getTicker().toUpperCase(), null) : null);
+
             asset = Asset.builder()
                     .ticker(assetDTO.getTicker().toUpperCase())
                     .name(assetDTO.getName())
@@ -113,11 +134,31 @@ public class PortfolioService {
                     .quantity(assetDTO.getQuantity())
                     .averagePrice(assetDTO.getAveragePrice())
                     .currentPrice(currentPrice)
+                    .strikePrice(assetDTO.getStrikePrice())
+                    .expirationDate(assetDTO.getExpirationDate())
+                    .underlyingTicker(underlyingTicker)
                     .portfolio(portfolio)
                     .build();
         }
 
         asset = assetRepository.save(asset);
+
+        // Registrar no histórico de compras
+        BigDecimal purchaseQty = assetDTO.getQuantity();
+        BigDecimal purchasePrice = assetDTO.getAveragePrice();
+        LocalDateTime txDate = assetDTO.getPurchaseDate() != null
+                ? assetDTO.getPurchaseDate().atTime(java.time.LocalTime.now())
+                : LocalDateTime.now();
+
+        AssetTransaction transaction = AssetTransaction.builder()
+                .asset(asset)
+                .quantity(purchaseQty)
+                .price(purchasePrice)
+                .totalValue(purchaseQty.multiply(purchasePrice))
+                .transactionDate(txDate)
+                .build();
+        assetTransactionRepository.save(transaction);
+
         return mapToAssetDTO(asset);
     }
 
@@ -132,16 +173,39 @@ public class PortfolioService {
         private final BigDecimal price;
         private final String source;
         private final String name;
+        private final AssetCategory category;
+        private final BigDecimal strikePrice;
+        private final java.time.LocalDate expirationDate;
+        private final String underlyingTicker;
+        private final BigDecimal underlyingPrice;
 
-        public LiveQuote(BigDecimal price, String source, String name) {
+        public LiveQuote(BigDecimal price, String source, String name, AssetCategory category) {
+            this(price, source, name, category, null, null, null, null);
+        }
+
+        public LiveQuote(BigDecimal price, String source, String name, AssetCategory category, BigDecimal strikePrice, java.time.LocalDate expirationDate) {
+            this(price, source, name, category, strikePrice, expirationDate, null, null);
+        }
+
+        public LiveQuote(BigDecimal price, String source, String name, AssetCategory category, BigDecimal strikePrice, java.time.LocalDate expirationDate, String underlyingTicker, BigDecimal underlyingPrice) {
             this.price = price;
             this.source = source;
             this.name = name;
+            this.category = category;
+            this.strikePrice = strikePrice;
+            this.expirationDate = expirationDate;
+            this.underlyingTicker = underlyingTicker;
+            this.underlyingPrice = underlyingPrice;
         }
 
         public BigDecimal getPrice() { return price; }
         public String getSource() { return source; }
         public String getName() { return name; }
+        public AssetCategory getCategory() { return category; }
+        public BigDecimal getStrikePrice() { return strikePrice; }
+        public java.time.LocalDate getExpirationDate() { return expirationDate; }
+        public String getUnderlyingTicker() { return underlyingTicker; }
+        public BigDecimal getUnderlyingPrice() { return underlyingPrice; }
     }
 
     public BigDecimal fetchLivePricePublic(String ticker, AssetCategory category) {
@@ -195,7 +259,17 @@ public class PortfolioService {
             BigDecimal price = tryFetchFromYahoo(candidate);
             if (price != null) {
                 log.info("Cotação obtida do Yahoo Finance para '{}' (candidato '{}'): R$ {}", ticker, candidate, price);
-                return new LiveQuote(price, "Yahoo Finance", null);
+                AssetCategory detectedCategory = category;
+                if (cleanTicker.matches("^[A-Z]{4}[A-Z][0-9A-Z]+$")) {
+                    detectedCategory = AssetCategory.OPCOES;
+                } else if (cleanTicker.matches("^[A-Z]{4}11(\\.SA)?$")) {
+                    detectedCategory = AssetCategory.FIIS;
+                } else if (cleanTicker.matches("^[A-Z]{4}[3-6](\\.SA)?$") || !cleanTicker.contains("-")) {
+                    detectedCategory = AssetCategory.ACOES;
+                } else if (cleanTicker.contains("-USD") || cleanTicker.contains("-BRL")) {
+                    detectedCategory = AssetCategory.CRIPTO;
+                }
+                return new LiveQuote(price, "Yahoo Finance", null, detectedCategory);
             }
         }
 
@@ -236,6 +310,16 @@ public class PortfolioService {
                         com.fasterxml.jackson.databind.JsonNode sctyQtn = scty.path("SctyQtn");
                         String desc = scty.hasNonNull("desc") ? scty.path("desc").asText() : null;
 
+                        String mktNm = scty.has("mkt") ? scty.path("mkt").path("nm").asText() : "";
+                        AssetCategory detectedCategory = null;
+                        if ("Opcoes".equalsIgnoreCase(mktNm) || queryTicker.matches("^[A-Z]{4}[A-Z][0-9A-Z]+$")) {
+                            detectedCategory = AssetCategory.OPCOES;
+                        } else if (queryTicker.matches("^[A-Z]{4}11$")) {
+                            detectedCategory = AssetCategory.FIIS;
+                        } else if ("Vista".equalsIgnoreCase(mktNm) || queryTicker.matches("^[A-Z]{4}[3-6]$")) {
+                            detectedCategory = AssetCategory.ACOES;
+                        }
+
                         BigDecimal price = null;
                         if (sctyQtn.hasNonNull("curPrc") && sctyQtn.path("curPrc").asDouble() > 0) {
                             price = BigDecimal.valueOf(sctyQtn.path("curPrc").asDouble()).setScale(2, RoundingMode.HALF_UP);
@@ -247,8 +331,27 @@ public class PortfolioService {
                             price = BigDecimal.valueOf(sctyQtn.path("minPric").asDouble()).setScale(2, RoundingMode.HALF_UP);
                         }
 
+                        BigDecimal strike = null;
+                        java.time.LocalDate expiration = null;
+                        String underlyingTicker = null;
+                        BigDecimal underlyingPrice = null;
+                        if (detectedCategory == AssetCategory.OPCOES) {
+                            if (desc != null) {
+                                java.util.regex.Matcher m = java.util.regex.Pattern.compile("([0-9]+[\\.,][0-9]+)\\s*$").matcher(desc.trim());
+                                if (m.find()) {
+                                    try {
+                                        strike = new BigDecimal(m.group(1).replace(",", ".")).setScale(2, RoundingMode.HALF_UP);
+                                    } catch (Exception ignored) {}
+                                }
+                            }
+                            expiration = calculateB3OptionExpiration(queryTicker);
+                            String[] holder = new String[]{null};
+                            underlyingPrice = fetchUnderlyingStockPrice(holder, queryTicker, desc);
+                            underlyingTicker = holder[0];
+                        }
+
                         if (price != null) {
-                            return new LiveQuote(price, "B3", desc);
+                            return new LiveQuote(price, "B3", desc, detectedCategory, strike, expiration, underlyingTicker, underlyingPrice);
                         }
                     }
                 }
@@ -257,6 +360,84 @@ public class PortfolioService {
             log.debug("Erro ao consultar B3 para {}: {}", queryTicker, e.getMessage());
         }
         return null;
+    }
+
+    public static String determineUnderlyingTicker(String optionTicker, String desc) {
+        if (optionTicker == null || optionTicker.length() < 4) return null;
+        String base = optionTicker.substring(0, 4).toUpperCase();
+
+        if (desc != null) {
+            String upperDesc = desc.toUpperCase();
+            if (upperDesc.contains(" ON") || upperDesc.startsWith("ON ") || upperDesc.contains(" ON ")) {
+                return base + "3";
+            } else if (upperDesc.contains(" PN ") || upperDesc.contains(" PN") || upperDesc.startsWith("PN ")) {
+                return base + "4";
+            } else if (upperDesc.contains(" PNA")) {
+                return base + "5";
+            } else if (upperDesc.contains(" PNB")) {
+                return base + "6";
+            } else if (upperDesc.contains(" UNT") || upperDesc.contains(" 11") || upperDesc.contains("11")) {
+                return base + "11";
+            }
+        }
+
+        return switch (base) {
+            case "VALE", "BBAS", "ABEV", "MGLU", "B3SA", "PRIO", "RENT", "SUZB", "WEGE", "JBSS",
+                 "CSNA", "ELET", "EMBR", "HAPV", "LREN", "VBBR", "COGN", "CYRE", "RADL", "SMTO",
+                 "CSAN", "UGPA", "VIVT", "TIMS", "BBSE", "IRBR", "ALOS", "EQTL", "SBSP",
+                 "NTCO", "PCAR", "ASAI", "CRFB", "BRFS", "MRFG", "BEEF", "BPAC", "AZZA" -> base + "3";
+            case "PETR", "ITUB", "BBDC", "GGBR", "CMIG", "RAIZ", "AZUL", "GOLL", "ITSA" -> base + "4";
+            case "USIM", "BRKM" -> base + "5";
+            case "CPLE" -> base + "6";
+            case "BOVA", "SMAL", "KLBN", "TAEE", "SAPR", "SANB", "ALUP" -> base + "11";
+            default -> base + "4";
+        };
+    }
+
+    private BigDecimal fetchUnderlyingStockPrice(String[] tickerHolder, String optionTicker, String desc) {
+        String underlyingTicker = tickerHolder[0] != null ? tickerHolder[0] : determineUnderlyingTicker(optionTicker, desc);
+        if (underlyingTicker == null) return null;
+
+        BigDecimal price = fetchLivePrice(underlyingTicker, AssetCategory.ACOES);
+        if (price == null && underlyingTicker.endsWith("4")) {
+            String alt = underlyingTicker.substring(0, 4) + "3";
+            BigDecimal altPrice = fetchLivePrice(alt, AssetCategory.ACOES);
+            if (altPrice != null) {
+                underlyingTicker = alt;
+                price = altPrice;
+            }
+        } else if (price == null && underlyingTicker.endsWith("3")) {
+            String alt = underlyingTicker.substring(0, 4) + "4";
+            BigDecimal altPrice = fetchLivePrice(alt, AssetCategory.ACOES);
+            if (altPrice != null) {
+                underlyingTicker = alt;
+                price = altPrice;
+            }
+        }
+        tickerHolder[0] = underlyingTicker;
+        return price;
+    }
+
+    public static java.time.LocalDate calculateB3OptionExpiration(String ticker) {
+        if (ticker == null || ticker.length() < 5) return null;
+        char code = Character.toUpperCase(ticker.charAt(4));
+        int month = -1;
+        if (code >= 'A' && code <= 'L') {
+            month = code - 'A' + 1;
+        } else if (code >= 'M' && code <= 'X') {
+            month = code - 'M' + 1;
+        }
+        if (month == -1) return null;
+
+        java.time.LocalDate now = java.time.LocalDate.now();
+        int year = now.getYear();
+        java.time.LocalDate thirdFriday = java.time.LocalDate.of(year, month, 1)
+                .with(java.time.temporal.TemporalAdjusters.dayOfWeekInMonth(3, java.time.DayOfWeek.FRIDAY));
+        if (thirdFriday.isBefore(now)) {
+            thirdFriday = java.time.LocalDate.of(year + 1, month, 1)
+                    .with(java.time.temporal.TemporalAdjusters.dayOfWeekInMonth(3, java.time.DayOfWeek.FRIDAY));
+        }
+        return thirdFriday;
     }
 
     private BigDecimal tryFetchFromYahoo(String queryTicker) {
@@ -329,7 +510,51 @@ public class PortfolioService {
             throw new SecurityException("Acesso negado a esta carteira.");
         }
 
+        assetTransactionRepository.deleteByAssetId(assetId);
         assetRepository.deleteById(assetId);
+    }
+
+    @Transactional
+    public List<AssetTransactionDTO> getAssetPurchaseHistory(Long portfolioId, @NonNull Long assetId, String userEmail) {
+        User user = getUserByEmail(userEmail);
+        @SuppressWarnings("null")
+        Portfolio portfolio = portfolioRepository.findById(portfolioId)
+                .orElseThrow(() -> new IllegalArgumentException("Carteira não encontrada."));
+
+        if (!portfolio.getUser().getId().equals(user.getId())) {
+            throw new SecurityException("Acesso negado a esta carteira.");
+        }
+
+        Asset asset = assetRepository.findById(assetId)
+                .orElseThrow(() -> new IllegalArgumentException("Ativo não encontrado."));
+
+        if (!asset.getPortfolio().getId().equals(portfolio.getId())) {
+            throw new IllegalArgumentException("Ativo não pertence a esta carteira.");
+        }
+
+        List<AssetTransaction> transactions = assetTransactionRepository.findByAssetIdOrderByTransactionDateDesc(assetId);
+        if (transactions.isEmpty()) {
+            AssetTransaction initialTx = AssetTransaction.builder()
+                    .asset(asset)
+                    .quantity(asset.getQuantity())
+                    .price(asset.getAveragePrice())
+                    .totalValue(asset.getQuantity().multiply(asset.getAveragePrice()))
+                    .transactionDate(asset.getCreatedAt() != null ? asset.getCreatedAt() : LocalDateTime.now())
+                    .build();
+            initialTx = assetTransactionRepository.save(initialTx);
+            transactions = List.of(initialTx);
+        }
+
+        return transactions.stream()
+                .map(tx -> new AssetTransactionDTO(
+                        tx.getId(),
+                        asset.getId(),
+                        tx.getQuantity(),
+                        tx.getPrice(),
+                        tx.getTotalValue(),
+                        tx.getTransactionDate()
+                ))
+                .collect(Collectors.toList());
     }
 
     @SuppressWarnings("null")
@@ -423,6 +648,14 @@ public class PortfolioService {
             gainLossPct = gainLoss.divide(totalCost, 4, RoundingMode.HALF_UP).multiply(new BigDecimal("100"));
         }
 
+        String underlyingTicker = null;
+        BigDecimal underlyingPrice = null;
+        if (asset.getCategory() == AssetCategory.OPCOES) {
+            String[] holder = new String[]{asset.getUnderlyingTicker()};
+            underlyingPrice = fetchUnderlyingStockPrice(holder, asset.getTicker(), null);
+            underlyingTicker = holder[0];
+        }
+
         return AssetDTO.builder()
                 .id(asset.getId())
                 .ticker(asset.getTicker())
@@ -434,6 +667,10 @@ public class PortfolioService {
                 .totalValue(totalValue)
                 .gainLoss(gainLoss)
                 .gainLossPercentage(gainLossPct)
+                .strikePrice(asset.getStrikePrice())
+                .expirationDate(asset.getExpirationDate())
+                .underlyingTicker(underlyingTicker)
+                .underlyingPrice(underlyingPrice)
                 .build();
     }
 
@@ -447,6 +684,14 @@ public class PortfolioService {
             gainLossPct = gainLoss.divide(totalCost, 4, RoundingMode.HALF_UP).multiply(new BigDecimal("100"));
         }
 
+        String underlyingTicker = null;
+        BigDecimal underlyingPrice = null;
+        if (asset.getCategory() == AssetCategory.OPCOES) {
+            String[] holder = new String[]{asset.getUnderlyingTicker()};
+            underlyingPrice = fetchUnderlyingStockPrice(holder, asset.getTicker(), null);
+            underlyingTicker = holder[0];
+        }
+
         return AssetDTO.builder()
                 .id(asset.getId())
                 .ticker(asset.getTicker())
@@ -458,6 +703,10 @@ public class PortfolioService {
                 .totalValue(totalValue)
                 .gainLoss(gainLoss)
                 .gainLossPercentage(gainLossPct)
+                .strikePrice(asset.getStrikePrice())
+                .expirationDate(asset.getExpirationDate())
+                .underlyingTicker(underlyingTicker)
+                .underlyingPrice(underlyingPrice)
                 .build();
     }
 }

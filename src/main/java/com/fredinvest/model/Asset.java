@@ -31,6 +31,13 @@ public class Asset {
     @Column(precision = 19, scale = 4)
     private BigDecimal currentPrice;
 
+    @Column(precision = 19, scale = 4)
+    private BigDecimal strikePrice;
+
+    private java.time.LocalDate expirationDate;
+
+    private String underlyingTicker;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "portfolio_id", nullable = false)
     private Portfolio portfolio;
@@ -43,6 +50,14 @@ public class Asset {
     public Asset() {}
 
     public Asset(Long id, String ticker, String name, AssetCategory category, BigDecimal quantity, BigDecimal averagePrice, BigDecimal currentPrice, Portfolio portfolio, LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this(id, ticker, name, category, quantity, averagePrice, currentPrice, portfolio, createdAt, updatedAt, null, null, null);
+    }
+
+    public Asset(Long id, String ticker, String name, AssetCategory category, BigDecimal quantity, BigDecimal averagePrice, BigDecimal currentPrice, Portfolio portfolio, LocalDateTime createdAt, LocalDateTime updatedAt, BigDecimal strikePrice, java.time.LocalDate expirationDate) {
+        this(id, ticker, name, category, quantity, averagePrice, currentPrice, portfolio, createdAt, updatedAt, strikePrice, expirationDate, null);
+    }
+
+    public Asset(Long id, String ticker, String name, AssetCategory category, BigDecimal quantity, BigDecimal averagePrice, BigDecimal currentPrice, Portfolio portfolio, LocalDateTime createdAt, LocalDateTime updatedAt, BigDecimal strikePrice, java.time.LocalDate expirationDate, String underlyingTicker) {
         this.id = id;
         this.ticker = ticker;
         this.name = name;
@@ -53,6 +68,9 @@ public class Asset {
         this.portfolio = portfolio;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
+        this.strikePrice = strikePrice;
+        this.expirationDate = expirationDate;
+        this.underlyingTicker = underlyingTicker;
     }
 
     @PrePersist
@@ -96,6 +114,15 @@ public class Asset {
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 
+    public BigDecimal getStrikePrice() { return strikePrice; }
+    public void setStrikePrice(BigDecimal strikePrice) { this.strikePrice = strikePrice; }
+
+    public java.time.LocalDate getExpirationDate() { return expirationDate; }
+    public void setExpirationDate(java.time.LocalDate expirationDate) { this.expirationDate = expirationDate; }
+
+    public String getUnderlyingTicker() { return underlyingTicker; }
+    public void setUnderlyingTicker(String underlyingTicker) { this.underlyingTicker = underlyingTicker; }
+
     public static AssetBuilder builder() {
         return new AssetBuilder();
     }
@@ -111,6 +138,9 @@ public class Asset {
         private Portfolio portfolio;
         private LocalDateTime createdAt;
         private LocalDateTime updatedAt;
+        private BigDecimal strikePrice;
+        private java.time.LocalDate expirationDate;
+        private String underlyingTicker;
 
         public AssetBuilder id(Long id) { this.id = id; return this; }
         public AssetBuilder ticker(String ticker) { this.ticker = ticker; return this; }
@@ -122,9 +152,12 @@ public class Asset {
         public AssetBuilder portfolio(Portfolio portfolio) { this.portfolio = portfolio; return this; }
         public AssetBuilder createdAt(LocalDateTime createdAt) { this.createdAt = createdAt; return this; }
         public AssetBuilder updatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; return this; }
+        public AssetBuilder strikePrice(BigDecimal strikePrice) { this.strikePrice = strikePrice; return this; }
+        public AssetBuilder expirationDate(java.time.LocalDate expirationDate) { this.expirationDate = expirationDate; return this; }
+        public AssetBuilder underlyingTicker(String underlyingTicker) { this.underlyingTicker = underlyingTicker; return this; }
 
         public Asset build() {
-            return new Asset(id, ticker, name, category, quantity, averagePrice, currentPrice, portfolio, createdAt, updatedAt);
+            return new Asset(id, ticker, name, category, quantity, averagePrice, currentPrice, portfolio, createdAt, updatedAt, strikePrice, expirationDate, underlyingTicker);
         }
     }
 }

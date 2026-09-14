@@ -37,6 +37,9 @@ class PortfolioServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private com.fredinvest.repository.AssetTransactionRepository assetTransactionRepository;
+
     @InjectMocks
     private PortfolioService portfolioService;
 
@@ -158,6 +161,15 @@ class PortfolioServiceTest {
         assertEquals(new BigDecimal("20.0000"), summary.getGainLossPercentage());
         assertEquals(1, summary.getAllocations().size());
         assertEquals(new BigDecimal("100.0000"), summary.getAllocations().get(0).getPercentage());
+    }
+
+    @Test
+    void determineUnderlyingTickerResolvesCorrectStockFromDescriptionAndTicker() {
+        assertEquals("VALE3", PortfolioService.determineUnderlyingTicker("VALEJ854", "VALEE ON 83,64"));
+        assertEquals("PETR4", PortfolioService.determineUnderlyingTicker("PETRJ380", "PETR PN 38.00"));
+        assertEquals("BOVA11", PortfolioService.determineUnderlyingTicker("BOVAW120", null));
+        assertEquals("VALE3", PortfolioService.determineUnderlyingTicker("VALEA800", null));
+        assertEquals("ITUB4", PortfolioService.determineUnderlyingTicker("ITUBJ350", null));
     }
 
     private User user() {

@@ -47,12 +47,25 @@ public class PortfolioController {
             result.put("price", quote.getPrice());
             result.put("source", quote.getSource());
             result.put("name", quote.getName());
+            result.put("category", quote.getCategory() != null ? quote.getCategory().name() : null);
+            result.put("strikePrice", quote.getStrikePrice());
+            result.put("expirationDate", quote.getExpirationDate() != null ? quote.getExpirationDate().toString() : null);
+            result.put("underlyingTicker", quote.getUnderlyingTicker());
+            result.put("underlyingPrice", quote.getUnderlyingPrice());
             result.put("found", true);
         } else {
             result.put("price", null);
             result.put("found", false);
         }
         return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/{portfolioId}/assets/{assetId}/history")
+    public ResponseEntity<java.util.List<com.fredinvest.dto.AssetTransactionDTO>> getAssetPurchaseHistory(
+            @PathVariable @NonNull Long portfolioId,
+            @PathVariable @NonNull Long assetId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(portfolioService.getAssetPurchaseHistory(portfolioId, assetId, userDetails.getUsername()));
     }
 
     @PostMapping("/{portfolioId}/assets")

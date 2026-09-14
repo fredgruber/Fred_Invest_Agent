@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fred-invest-v2';
+const CACHE_NAME = 'fred-invest-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',

@@ -34,9 +34,22 @@ public class PortfolioDTOs {
         private BigDecimal totalValue;
         private BigDecimal gainLoss;
         private BigDecimal gainLossPercentage;
+        private BigDecimal strikePrice;
+        private java.time.LocalDate expirationDate;
+        private java.time.LocalDate purchaseDate;
+        private String underlyingTicker;
+        private BigDecimal underlyingPrice;
 
         public AssetDTO() {}
         public AssetDTO(Long id, String ticker, String name, AssetCategory category, BigDecimal quantity, BigDecimal averagePrice, BigDecimal currentPrice, BigDecimal totalValue, BigDecimal gainLoss, BigDecimal gainLossPercentage) {
+            this(id, ticker, name, category, quantity, averagePrice, currentPrice, totalValue, gainLoss, gainLossPercentage, null, null, null, null, null);
+        }
+
+        public AssetDTO(Long id, String ticker, String name, AssetCategory category, BigDecimal quantity, BigDecimal averagePrice, BigDecimal currentPrice, BigDecimal totalValue, BigDecimal gainLoss, BigDecimal gainLossPercentage, BigDecimal strikePrice, java.time.LocalDate expirationDate, java.time.LocalDate purchaseDate) {
+            this(id, ticker, name, category, quantity, averagePrice, currentPrice, totalValue, gainLoss, gainLossPercentage, strikePrice, expirationDate, purchaseDate, null, null);
+        }
+
+        public AssetDTO(Long id, String ticker, String name, AssetCategory category, BigDecimal quantity, BigDecimal averagePrice, BigDecimal currentPrice, BigDecimal totalValue, BigDecimal gainLoss, BigDecimal gainLossPercentage, BigDecimal strikePrice, java.time.LocalDate expirationDate, java.time.LocalDate purchaseDate, String underlyingTicker, BigDecimal underlyingPrice) {
             this.id = id;
             this.ticker = ticker;
             this.name = name;
@@ -47,6 +60,11 @@ public class PortfolioDTOs {
             this.totalValue = totalValue;
             this.gainLoss = gainLoss;
             this.gainLossPercentage = gainLossPercentage;
+            this.strikePrice = strikePrice;
+            this.expirationDate = expirationDate;
+            this.purchaseDate = purchaseDate;
+            this.underlyingTicker = underlyingTicker;
+            this.underlyingPrice = underlyingPrice;
         }
 
         public Long getId() { return id; }
@@ -79,6 +97,21 @@ public class PortfolioDTOs {
         public BigDecimal getGainLossPercentage() { return gainLossPercentage; }
         public void setGainLossPercentage(BigDecimal gainLossPercentage) { this.gainLossPercentage = gainLossPercentage; }
 
+        public BigDecimal getStrikePrice() { return strikePrice; }
+        public void setStrikePrice(BigDecimal strikePrice) { this.strikePrice = strikePrice; }
+
+        public java.time.LocalDate getExpirationDate() { return expirationDate; }
+        public void setExpirationDate(java.time.LocalDate expirationDate) { this.expirationDate = expirationDate; }
+
+        public java.time.LocalDate getPurchaseDate() { return purchaseDate; }
+        public void setPurchaseDate(java.time.LocalDate purchaseDate) { this.purchaseDate = purchaseDate; }
+
+        public String getUnderlyingTicker() { return underlyingTicker; }
+        public void setUnderlyingTicker(String underlyingTicker) { this.underlyingTicker = underlyingTicker; }
+
+        public BigDecimal getUnderlyingPrice() { return underlyingPrice; }
+        public void setUnderlyingPrice(BigDecimal underlyingPrice) { this.underlyingPrice = underlyingPrice; }
+
         public static AssetDTOBuilder builder() { return new AssetDTOBuilder(); }
         public static class AssetDTOBuilder {
             private Long id;
@@ -91,6 +124,11 @@ public class PortfolioDTOs {
             private BigDecimal totalValue;
             private BigDecimal gainLoss;
             private BigDecimal gainLossPercentage;
+            private BigDecimal strikePrice;
+            private java.time.LocalDate expirationDate;
+            private java.time.LocalDate purchaseDate;
+            private String underlyingTicker;
+            private BigDecimal underlyingPrice;
 
             public AssetDTOBuilder id(Long id) { this.id = id; return this; }
             public AssetDTOBuilder ticker(String ticker) { this.ticker = ticker; return this; }
@@ -102,9 +140,14 @@ public class PortfolioDTOs {
             public AssetDTOBuilder totalValue(BigDecimal totalValue) { this.totalValue = totalValue; return this; }
             public AssetDTOBuilder gainLoss(BigDecimal gainLoss) { this.gainLoss = gainLoss; return this; }
             public AssetDTOBuilder gainLossPercentage(BigDecimal gainLossPercentage) { this.gainLossPercentage = gainLossPercentage; return this; }
+            public AssetDTOBuilder strikePrice(BigDecimal strikePrice) { this.strikePrice = strikePrice; return this; }
+            public AssetDTOBuilder expirationDate(java.time.LocalDate expirationDate) { this.expirationDate = expirationDate; return this; }
+            public AssetDTOBuilder purchaseDate(java.time.LocalDate purchaseDate) { this.purchaseDate = purchaseDate; return this; }
+            public AssetDTOBuilder underlyingTicker(String underlyingTicker) { this.underlyingTicker = underlyingTicker; return this; }
+            public AssetDTOBuilder underlyingPrice(BigDecimal underlyingPrice) { this.underlyingPrice = underlyingPrice; return this; }
 
             public AssetDTO build() {
-                return new AssetDTO(id, ticker, name, category, quantity, averagePrice, currentPrice, totalValue, gainLoss, gainLossPercentage);
+                return new AssetDTO(id, ticker, name, category, quantity, averagePrice, currentPrice, totalValue, gainLoss, gainLossPercentage, strikePrice, expirationDate, purchaseDate, underlyingTicker, underlyingPrice);
             }
         }
     }

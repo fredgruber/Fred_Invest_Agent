@@ -38,6 +38,38 @@ document.getElementById('btn-install-pwa')?.addEventListener('click', async () =
 
 // App Initialization
 document.addEventListener('DOMContentLoaded', () => {
+  // Trata redirecionamento de sucesso ou erro do OAuth2
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.has('token')) {
+    jwtToken = urlParams.get('token');
+    localStorage.setItem('fred_jwt', jwtToken);
+
+    try {
+      const payloadBase64 = jwtToken.split('.')[1];
+      const payloadJson = decodeURIComponent(atob(payloadBase64).split('').map(c => {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      const payload = JSON.parse(payloadJson);
+      userEmail = payload.sub || '';
+      userName = payload.name || (userEmail.includes('@') ? userEmail.split('@')[0] : 'Usuário');
+      localStorage.setItem('fred_user_email', userEmail);
+      localStorage.setItem('fred_user_name', userName);
+    } catch (e) {
+      console.warn('Não foi possível extrair dados do token JWT:', e);
+    }
+
+    // Limpa a URL da barra de endereços
+    window.history.replaceState({}, document.title, window.location.pathname);
+    showAppView();
+    return;
+  }
+
+  if (urlParams.has('error')) {
+    const errorMsg = urlParams.get('error');
+    window.history.replaceState({}, document.title, window.location.pathname);
+    alert('❌ Erro na autenticação OAuth2 com o provedor:\n' + errorMsg);
+  }
+
   if (jwtToken) {
     showAppView();
   } else {
@@ -98,7 +130,10 @@ async function handleLogin(e) {
       body: JSON.stringify({ email, password })
     });
 
-    if (!response.ok) throw new Error('Falha no login. Verifique e-mail e senha.');
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.message || 'Falha no login. Verifique e-mail e senha.');
+    }
 
     const data = await response.json();
     jwtToken = data.accessToken;
@@ -130,7 +165,10 @@ async function handleRegister(e) {
       body: JSON.stringify({ fullName, email, password })
     });
 
-    if (!response.ok) throw new Error('Falha ao cadastrar. E-mail já existente ou senha inválida.');
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.message || 'Falha ao cadastrar. E-mail já existente ou senha inválida.');
+    }
 
     const data = await response.json();
     jwtToken = data.accessToken;
@@ -149,9 +187,44 @@ async function handleRegister(e) {
   }
 }
 
-async function handleSocialLogin(provider) {
-  let email = provider === 'GOOGLE' ? 'fred.gruber@gmail.com' : `user_${provider.toLowerCase()}@fredinvest.com`;
-  let fullName = provider === 'GOOGLE' ? 'Fred Gruber' : `Usuário ${provider}`;
+function handleSocialLogin(provider) {
+  // Redireciona imediatamente para o fluxo oficial OAuth2 do provedor
+  window.location.href = `/oauth2/authorization/${provider.toLowerCase()}`;
+}
+
+function openTokenValidationModal(preselectedProvider) {
+  const modal = document.getElementById('token-validation-modal');
+  const select = document.getElementById('manual-provider-select');
+  const input = document.getElementById('manual-token-input');
+  if (preselectedProvider && select) {
+    select.value = preselectedProvider;
+  }
+  if (input) input.value = '';
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeTokenValidationModal() {
+  const modal = document.getElementById('token-validation-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
+async function submitManualTokenValidation() {
+  const select = document.getElementById('manual-provider-select');
+  const tokenInput = document.getElementById('manual-token-input');
+  const provider = select ? select.value : 'GOOGLE';
+  const token = tokenInput ? tokenInput.value.trim() : '';
+
+  if (!token) {
+    alert('Por favor, informe ou cole o token do provedor para validação na API.');
+    return;
+  }
+
+  const validateBtn = document.getElementById('btn-validate-manual-token');
+  const originalText = validateBtn ? validateBtn.innerText : '';
+  if (validateBtn) {
+    validateBtn.innerText = 'Validando na API oficial...';
+    validateBtn.disabled = true;
+  }
 
   try {
     const response = await fetch('/api/v1/auth/social', {
@@ -159,28 +232,35 @@ async function handleSocialLogin(provider) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         provider: provider,
-        token: `mock_oauth_token_${provider}_` + Date.now(),
-        fullName: fullName,
-        email: email
+        token: token
       })
     });
 
-    if (!response.ok) throw new Error(`Falha no login com ${provider}`);
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.message || `Falha na validação do token com a API de ${provider}`);
+    }
 
     const data = await response.json();
     jwtToken = data.accessToken;
     userProvider = data.provider || provider;
-    userName = data.fullName || fullName;
-    userEmail = data.email || email;
+    userName = data.fullName || 'Usuário ' + provider;
+    userEmail = data.email || '';
 
     localStorage.setItem('fred_jwt', jwtToken);
     localStorage.setItem('fred_user_provider', userProvider);
     localStorage.setItem('fred_user_name', userName);
     localStorage.setItem('fred_user_email', userEmail);
 
+    closeTokenValidationModal();
     showAppView();
   } catch (err) {
-    alert(err.message);
+    alert('❌ ' + err.message);
+  } finally {
+    if (validateBtn) {
+      validateBtn.innerText = originalText;
+      validateBtn.disabled = false;
+    }
   }
 }
 
@@ -193,6 +273,10 @@ function logout() {
   localStorage.removeItem('fred_user_provider');
   localStorage.removeItem('fred_user_name');
   localStorage.removeItem('fred_user_email');
+  const emailInput = document.getElementById('login-email');
+  const passInput = document.getElementById('login-password');
+  if (emailInput) emailInput.value = '';
+  if (passInput) passInput.value = '';
   showAuthView();
 }
 

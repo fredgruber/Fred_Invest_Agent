@@ -39,6 +39,9 @@ class AuthServiceTest {
     private JwtTokenProvider tokenProvider;
 
     @Mock
+    private OAuthValidationService oauthValidationService;
+
+    @Mock
     private Authentication authentication;
 
     @InjectMocks
@@ -116,28 +119,47 @@ class AuthServiceTest {
         OAuth2LoginRequest request = OAuth2LoginRequest.builder()
                 .provider("google")
                 .token("oauth-token")
-                .email("ana@example.com")
-                .fullName("Ana Silva")
-                .profilePictureUrl("picture")
                 .build();
+        when(oauthValidationService.validateAndExtractProfile(AuthProvider.GOOGLE, "oauth-token"))
+                .thenReturn(new OAuthValidationService.SocialUserProfile("ana@example.com", "Ana Silva", "google-sub-123", "picture"));
+
         User savedUser = User.builder()
                 .id(9L)
-                .email(request.getEmail())
-                .fullName(request.getFullName())
+                .email("ana@example.com")
+                .fullName("Ana Silva")
                 .provider(AuthProvider.GOOGLE)
+                .providerId("google-sub-123")
+                .profilePictureUrl("picture")
                 .build();
-        when(userRepository.findByEmail(request.getEmail())).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("ana@example.com")).thenReturn(Optional.empty());
         when(userRepository.save(any(User.class))).thenReturn(savedUser);
-        when(tokenProvider.generateTokenFromUsername(request.getEmail())).thenReturn("social-token");
+        when(tokenProvider.generateTokenFromUsername("ana@example.com")).thenReturn("social-token");
 
         AuthResponse response = authService.socialLogin(request);
 
         assertEquals("social-token", response.getAccessToken());
         assertEquals(AuthProvider.GOOGLE, response.getProvider());
+        verify(oauthValidationService).validateAndExtractProfile(AuthProvider.GOOGLE, "oauth-token");
         verify(userRepository).save(argThat(user ->
                 user.getProvider() == AuthProvider.GOOGLE
-                        && user.getProviderId().equals(request.getToken())
+                        && user.getProviderId().equals("google-sub-123")
                         && user.getProfilePictureUrl().equals("picture")));
+    }
+
+    @Test
+    void socialLoginRejectsInvalidTokenFromProviderApi() {
+        OAuth2LoginRequest request = OAuth2LoginRequest.builder()
+                .provider("google")
+                .token("invalid-token")
+                .build();
+        when(oauthValidationService.validateAndExtractProfile(AuthProvider.GOOGLE, "invalid-token"))
+                .thenThrow(new IllegalArgumentException("Token Google inválido rejeitado pela API do Google"));
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> authService.socialLogin(request));
+
+        assertTrue(exception.getMessage().contains("Token Google inválido"));
+        verifyNoInteractions(userRepository, tokenProvider);
     }
 
     @Test

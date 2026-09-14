@@ -17,7 +17,10 @@ logs/
 
 # OS metadata
 .DS_Store
-Thumbs.db
+# Environment & Secrets
+.env
+.env.*
+!.env.example
 
 # Temporary upgrade logs
 .github/modernize/

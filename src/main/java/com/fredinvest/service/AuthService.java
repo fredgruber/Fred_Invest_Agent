@@ -19,12 +19,18 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider tokenProvider;
+    private final OAuthValidationService oauthValidationService;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, AuthenticationManager authenticationManager, JwtTokenProvider tokenProvider) {
+    public AuthService(UserRepository userRepository,
+                       PasswordEncoder passwordEncoder,
+                       AuthenticationManager authenticationManager,
+                       JwtTokenProvider tokenProvider,
+                       OAuthValidationService oauthValidationService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.tokenProvider = tokenProvider;
+        this.oauthValidationService = oauthValidationService;
     }
 
     @SuppressWarnings("null")
@@ -56,12 +62,19 @@ public class AuthService {
     }
 
     public AuthResponse login(LoginRequest request) {
+        User user = userRepository.findByEmail(request.getEmail()).orElse(null);
+        if (user != null && user.getProvider() != AuthProvider.LOCAL && (user.getPasswordHash() == null || user.getPasswordHash().isBlank())) {
+            throw new IllegalArgumentException("Esta conta foi cadastrada via " + user.getProvider() + ". Por favor, utilize o botão 'Entrar com Google'.");
+        }
+
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
         );
 
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado."));
+        if (user == null) {
+            user = userRepository.findByEmail(request.getEmail())
+                    .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado."));
+        }
 
         String token = tokenProvider.generateToken(authentication);
 
@@ -84,21 +97,30 @@ public class AuthService {
             throw new IllegalArgumentException("Provedor OAuth2 inválido: " + request.getProvider());
         }
 
-        String email = request.getEmail();
-        if (email == null || email.isBlank()) {
-            email = request.getProvider().toLowerCase() + "_user_" + System.currentTimeMillis() + "@fredinvest.com";
-        }
+        // Valida o token diretamente contra a API oficial do provedor (Google, Microsoft ou Apple)
+        OAuthValidationService.SocialUserProfile profile = oauthValidationService.validateAndExtractProfile(provider, request.getToken());
 
-        String finalEmail = email;
+        String email = profile.email();
         @SuppressWarnings("null")
-		User user = userRepository.findByEmail(finalEmail)
+        User user = userRepository.findByEmail(email)
+                .map(existingUser -> {
+                    if (profile.fullName() != null && !profile.fullName().isBlank()) {
+                        existingUser.setFullName(profile.fullName());
+                    }
+                    if (profile.pictureUrl() != null && !profile.pictureUrl().isBlank()) {
+                        existingUser.setProfilePictureUrl(profile.pictureUrl());
+                    }
+                    existingUser.setProvider(provider);
+                    existingUser.setProviderId(profile.providerId());
+                    return userRepository.save(existingUser);
+                })
                 .orElseGet(() -> {
                     User newUser = User.builder()
-                            .email(finalEmail)
-                            .fullName(request.getFullName() != null ? request.getFullName() : "Usuário " + provider)
+                            .email(email)
+                            .fullName(profile.fullName() != null ? profile.fullName() : "Usuário " + provider)
                             .provider(provider)
-                            .providerId(request.getToken())
-                            .profilePictureUrl(request.getProfilePictureUrl())
+                            .providerId(profile.providerId())
+                            .profilePictureUrl(profile.pictureUrl())
                             .build();
                     return userRepository.save(newUser);
                 });

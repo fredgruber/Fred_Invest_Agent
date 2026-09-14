@@ -1,6 +1,6 @@
 {
   "java.compile.nullAnalysis.mode": "automatic",
-  "java.configuration.updateBuildConfiguration": "interactive",
+  "java.configuration.updateBuildConfiguration": "automatic",
   "java.import.maven.enabled": true,
   "java.jdt.ls.java.home": "/home/fredgruber/.jdk/jdk-25.0.2",
   "java.configuration.runtimes": [

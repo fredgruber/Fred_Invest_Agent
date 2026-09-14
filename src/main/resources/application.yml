@@ -24,38 +24,13 @@ spring:
       client:
         registration:
           google:
-            client-id: ${GOOGLE_CLIENT_ID:google-client-id-demo}
-            client-secret: ${GOOGLE_CLIENT_SECRET:google-client-secret-demo}
+            client-id: ${GOOGLE_CLIENT_ID:}
+            client-secret: ${GOOGLE_CLIENT_SECRET:}
             scope:
               - email
               - profile
             redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
-          apple:
-            client-id: ${APPLE_CLIENT_ID:apple-client-id-demo}
-            client-secret: ${APPLE_CLIENT_SECRET:apple-client-secret-demo}
-            authorization-grant-type: authorization_code
-            scope:
-              - name
-              - email
-            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
-          microsoft:
-            client-id: ${MICROSOFT_CLIENT_ID:microsoft-client-id-demo}
-            client-secret: ${MICROSOFT_CLIENT_SECRET:microsoft-client-secret-demo}
-            authorization-grant-type: authorization_code
-            scope:
-              - openid
-              - profile
-              - email
-            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
-        provider:
-          apple:
-            authorization-uri: https://appleid.apple.com/auth/authorize
-            token-uri: https://appleid.apple.com/auth/token
-          microsoft:
-            authorization-uri: https://login.microsoftonline.com/common/oauth2/v2.0/authorize
-            token-uri: https://login.microsoftonline.com/common/oauth2/v2.0/token
-            user-info-uri: https://graph.microsoft.com/v1.0/me
-            user-name-attribute: displayName
+
 
 app:
   jwt:

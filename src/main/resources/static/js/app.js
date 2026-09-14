@@ -378,16 +378,116 @@ async function editAssetPrice(assetId, ticker) {
   }
 }
 
+function clearAddAssetForm() {
+  const form = document.getElementById('add-asset-form');
+  if (form) form.reset();
+  const tickerInput = document.getElementById('asset-ticker');
+  const nameInput = document.getElementById('asset-name');
+  const catInput = document.getElementById('asset-category');
+  const qtyInput = document.getElementById('asset-qty');
+  const priceInput = document.getElementById('asset-price');
+  if (tickerInput) tickerInput.value = '';
+  if (nameInput) nameInput.value = '';
+  if (catInput) catInput.value = 'ACOES';
+  if (qtyInput) qtyInput.value = '';
+  if (priceInput) {
+    priceInput.value = '';
+    priceInput.placeholder = 'Preço Médio (R$)';
+  }
+  const badge = document.getElementById('ticker-quote-badge');
+  if (badge) {
+    badge.style.display = 'none';
+    badge.innerText = '';
+  }
+}
+
 function openAddAssetModal() {
-  document.getElementById('add-asset-box').classList.toggle('hidden');
+  const box = document.getElementById('add-asset-box');
+  const isHidden = box.classList.contains('hidden');
+  if (isHidden) {
+    clearAddAssetForm();
+    box.classList.remove('hidden');
+    const tickerInput = document.getElementById('asset-ticker');
+    if (tickerInput) tickerInput.focus();
+  } else {
+    box.classList.add('hidden');
+  }
+}
+
+function closeAddAssetModal() {
+  clearAddAssetForm();
+  document.getElementById('add-asset-box').classList.add('hidden');
+}
+
+async function checkTickerQuote() {
+  const tickerInput = document.getElementById('asset-ticker');
+  if (!tickerInput) return;
+  const ticker = tickerInput.value.trim().toUpperCase();
+  const category = document.getElementById('asset-category')?.value || 'ACOES';
+  const badge = document.getElementById('ticker-quote-badge');
+  if (!badge) return;
+
+  if (!ticker || ticker.length < 3) {
+    badge.style.display = 'none';
+    return;
+  }
+
+  badge.style.display = 'inline-block';
+  badge.style.background = 'var(--bg-card)';
+  badge.style.color = 'var(--text-muted)';
+  badge.innerText = `Buscando cotação no Yahoo...`;
+
+  try {
+    const res = await fetch(`/api/v1/portfolios/quote/${encodeURIComponent(ticker)}?category=${category}`, {
+      headers: { 'Authorization': `Bearer ${jwtToken}` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.found && data.price != null) {
+        badge.style.background = '#065f46';
+        badge.style.color = '#34d399';
+        badge.innerText = `Yahoo Finance: ${formatCurrency(data.price)}`;
+        const priceInput = document.getElementById('asset-price');
+        if (priceInput && !priceInput.value) {
+          priceInput.placeholder = `Sugestão: ${data.price.toFixed(2)}`;
+        }
+      } else {
+        badge.style.background = '#374151';
+        badge.style.color = '#9ca3af';
+        badge.innerText = `Cotação ao vivo não encontrada`;
+      }
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch (err) {
+    console.debug('Erro ao consultar cotação:', err);
+    badge.style.display = 'none';
+  }
+}
+
+async function refreshLiveQuotes() {
+  const btn = event?.target;
+  const originalText = btn ? btn.innerText : '';
+  if (btn) {
+    btn.innerText = '🔄 Atualizando...';
+    btn.disabled = true;
+  }
+  try {
+    await loadDashboardData();
+  } finally {
+    if (btn) {
+      btn.innerText = originalText;
+      btn.disabled = false;
+    }
+  }
 }
 
 async function handleAddAsset(e) {
   e.preventDefault();
   if (!currentPortfolioId) return;
 
-  const ticker = document.getElementById('asset-ticker').value;
-  const name = document.getElementById('asset-name').value;
+  const ticker = document.getElementById('asset-ticker').value.trim().toUpperCase();
+  const name = document.getElementById('asset-name').value.trim();
   const category = document.getElementById('asset-category').value;
   const quantity = parseFloat(document.getElementById('asset-qty').value);
   const averagePrice = parseFloat(document.getElementById('asset-price').value);
@@ -403,8 +503,11 @@ async function handleAddAsset(e) {
     });
 
     if (res.ok) {
-      document.getElementById('add-asset-box').classList.add('hidden');
+      closeAddAssetModal();
       loadDashboardData();
+    } else {
+      const errData = await res.json().catch(() => ({}));
+      alert(errData.message || 'Erro ao adicionar ativo.');
     }
   } catch (err) {
     alert('Erro ao adicionar ativo: ' + err.message);

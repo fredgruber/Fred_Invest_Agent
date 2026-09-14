@@ -121,34 +121,85 @@ public class PortfolioService {
         return mapToAssetDTO(asset);
     }
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(PortfolioService.class);
+    private final java.net.http.HttpClient httpClient = java.net.http.HttpClient.newBuilder()
+            .followRedirects(java.net.http.HttpClient.Redirect.NORMAL)
+            .connectTimeout(java.time.Duration.ofSeconds(5))
+            .build();
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+
+    public BigDecimal fetchLivePricePublic(String ticker, AssetCategory category) {
+        return fetchLivePrice(ticker, category);
+    }
+
     private BigDecimal fetchLivePrice(String ticker, AssetCategory category) {
-        try {
-            String queryTicker = ticker.toUpperCase();
-            if ((category == AssetCategory.ACOES || category == AssetCategory.FIIS || category == AssetCategory.OPCOES) && !queryTicker.endsWith(".SA")) {
-                queryTicker += ".SA";
+        if (ticker == null || ticker.trim().isBlank()) {
+            return null;
+        }
+
+        String cleanTicker = ticker.trim().toUpperCase();
+        List<String> candidates = new ArrayList<>();
+
+        if (cleanTicker.endsWith(".SA")) {
+            candidates.add(cleanTicker);
+            candidates.add(cleanTicker.substring(0, cleanTicker.length() - 3));
+        } else {
+            if (category == AssetCategory.ACOES || category == AssetCategory.FIIS || category == AssetCategory.OPCOES) {
+                candidates.add(cleanTicker + ".SA");
+                candidates.add(cleanTicker);
+            } else if (category == AssetCategory.CRIPTO) {
+                candidates.add(cleanTicker + "-USD");
+                candidates.add(cleanTicker + "-BRL");
+                candidates.add(cleanTicker);
+            } else {
+                candidates.add(cleanTicker);
+                candidates.add(cleanTicker + ".SA");
             }
-            String url = "https://query1.finance.yahoo.com/v8/finance/chart/" + queryTicker;
-            java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(5)).build();
-            java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder()
-                    .uri(java.net.URI.create(url))
-                    .GET()
-                    .header("User-Agent", "Mozilla/5.0")
-                    .timeout(java.time.Duration.ofSeconds(5))
-                    .build();
-            java.net.http.HttpResponse<String> resp = client.send(req, java.net.http.HttpResponse.BodyHandlers.ofString());
-            if (resp.statusCode() == 200) {
-                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(resp.body());
-                com.fasterxml.jackson.databind.JsonNode result = root.path("chart").path("result");
-                if (result.isArray() && result.size() > 0) {
-                    com.fasterxml.jackson.databind.JsonNode meta = result.get(0).path("meta");
-                    if (meta.has("regularMarketPrice")) {
-                        return new BigDecimal(meta.path("regularMarketPrice").asText());
+        }
+
+        for (String candidate : candidates) {
+            BigDecimal price = tryFetchFromYahoo(candidate);
+            if (price != null) {
+                log.info("Cotação obtida do Yahoo Finance para '{}' (candidato '{}'): R$ {}", ticker, candidate, price);
+                return price;
+            }
+        }
+
+        log.warn("Nenhuma cotação encontrada no Yahoo Finance para o ticker: '{}' (candidatos testados: {})", ticker, candidates);
+        return null;
+    }
+
+    private BigDecimal tryFetchFromYahoo(String queryTicker) {
+        String[] hosts = {"query1.finance.yahoo.com", "query2.finance.yahoo.com"};
+        for (String host : hosts) {
+            try {
+                String url = "https://" + host + "/v8/finance/chart/" + queryTicker;
+                java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder()
+                        .uri(java.net.URI.create(url))
+                        .GET()
+                        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                        .header("Accept", "application/json")
+                        .timeout(java.time.Duration.ofSeconds(4))
+                        .build();
+
+                java.net.http.HttpResponse<String> resp = httpClient.send(req, java.net.http.HttpResponse.BodyHandlers.ofString());
+                if (resp.statusCode() == 200 && resp.body() != null && !resp.body().isBlank()) {
+                    com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(resp.body());
+                    com.fasterxml.jackson.databind.JsonNode result = root.path("chart").path("result");
+                    if (result.isArray() && result.size() > 0) {
+                        com.fasterxml.jackson.databind.JsonNode meta = result.get(0).path("meta");
+                        if (meta.hasNonNull("regularMarketPrice")) {
+                            return new BigDecimal(meta.path("regularMarketPrice").asText()).setScale(2, RoundingMode.HALF_UP);
+                        } else if (meta.hasNonNull("chartPreviousClose")) {
+                            return new BigDecimal(meta.path("chartPreviousClose").asText()).setScale(2, RoundingMode.HALF_UP);
+                        } else if (meta.hasNonNull("previousClose")) {
+                            return new BigDecimal(meta.path("previousClose").asText()).setScale(2, RoundingMode.HALF_UP);
+                        }
                     }
                 }
+            } catch (Exception e) {
+                log.debug("Erro ao consultar Yahoo Finance em {} para {}: {}", host, queryTicker, e.getMessage());
             }
-        } catch (Exception e) {
-            System.err.println("Erro ao buscar preco no Yahoo Finance para " + ticker + ": " + e.getMessage());
         }
         return null;
     }
@@ -265,7 +316,13 @@ public class PortfolioService {
 
     private AssetDTO mapToAssetDTO(Asset asset) {
         BigDecimal livePrice = fetchLivePrice(asset.getTicker(), asset.getCategory());
-        BigDecimal currentPrice = livePrice != null ? livePrice : (asset.getCurrentPrice() != null ? asset.getCurrentPrice() : asset.getAveragePrice());
+        if (livePrice != null && !livePrice.equals(asset.getCurrentPrice())) {
+            asset.setCurrentPrice(livePrice);
+            try {
+                assetRepository.save(asset);
+            } catch (Exception ignored) {}
+        }
+        BigDecimal currentPrice = asset.getCurrentPrice() != null ? asset.getCurrentPrice() : asset.getAveragePrice();
 
         BigDecimal totalValue = asset.getQuantity().multiply(currentPrice);
         BigDecimal totalCost = asset.getQuantity().multiply(asset.getAveragePrice());

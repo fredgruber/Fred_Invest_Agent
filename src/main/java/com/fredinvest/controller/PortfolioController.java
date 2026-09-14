@@ -37,6 +37,17 @@ public class PortfolioController {
         return ResponseEntity.ok(portfolioService.getPortfolioSummary(userDetails.getUsername()));
     }
 
+    @GetMapping("/quote/{ticker}")
+    public ResponseEntity<java.util.Map<String, Object>> getLiveQuote(@PathVariable String ticker,
+                                                                      @RequestParam(required = false) com.fredinvest.model.AssetCategory category) {
+        java.math.BigDecimal price = portfolioService.fetchLivePricePublic(ticker, category);
+        java.util.Map<String, Object> result = new java.util.HashMap<>();
+        result.put("ticker", ticker.toUpperCase().trim());
+        result.put("price", price);
+        result.put("found", price != null);
+        return ResponseEntity.ok(result);
+    }
+
     @PostMapping("/{portfolioId}/assets")
     public ResponseEntity<AssetDTO> addOrUpdateAsset(@PathVariable @NonNull Long portfolioId,
                                                      @Valid @RequestBody AssetDTO assetDTO,

@@ -125,17 +125,24 @@
 
       <!-- Assets Table -->
       <div class="card">
-        <div class="card-header">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
           <h2>📊 Ativos da Carteira</h2>
-          <button class="btn-primary" style="width: auto; padding: 0.5rem 1rem;" onclick="openAddAssetModal()">+ Adicionar Ativo</button>
+          <div style="display: flex; gap: 0.5rem;">
+            <button class="btn-secondary" style="width: auto; padding: 0.5rem 1rem;" onclick="refreshLiveQuotes()" title="Atualizar cotações do Yahoo Finance">🔄 Atualizar Cotações</button>
+            <button class="btn-primary" style="width: auto; padding: 0.5rem 1rem;" onclick="openAddAssetModal()">+ Adicionar Ativo</button>
+          </div>
         </div>
 
         <!-- Add Asset Form Inline -->
-        <div id="add-asset-box" class="hidden" style="margin-bottom: 1.5rem; padding: 1rem; background: var(--bg-primary); border-radius: 0.5rem;">
-          <form onsubmit="handleAddAsset(event)" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) gap: 0.75rem;">
-            <input type="text" id="asset-ticker" placeholder="Ticker (ex: PETR4)" required style="padding: 0.5rem; background: var(--bg-card); color: white; border: 1px solid var(--border-color); border-radius: 0.25rem;">
+        <div id="add-asset-box" class="hidden" style="margin-bottom: 1.5rem; padding: 1rem; background: var(--bg-primary); border-radius: 0.5rem; border: 1px solid var(--border-color);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <h4 style="margin: 0; font-size: 0.95rem; color: var(--text-primary);">Novo Ativo na Carteira</h4>
+            <span id="ticker-quote-badge" style="display: none; font-size: 0.8rem; padding: 0.25rem 0.6rem; border-radius: 0.25rem; font-weight: 600;"></span>
+          </div>
+          <form id="add-asset-form" onsubmit="handleAddAsset(event)" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) gap: 0.75rem;">
+            <input type="text" id="asset-ticker" placeholder="Ticker (ex: PETR4)" required onblur="checkTickerQuote()" onchange="checkTickerQuote()" style="padding: 0.5rem; background: var(--bg-card); color: white; border: 1px solid var(--border-color); border-radius: 0.25rem; text-transform: uppercase;">
             <input type="text" id="asset-name" placeholder="Nome do Ativo" required style="padding: 0.5rem; background: var(--bg-card); color: white; border: 1px solid var(--border-color); border-radius: 0.25rem;">
-            <select id="asset-category" style="padding: 0.5rem; background: var(--bg-card); color: white; border: 1px solid var(--border-color); border-radius: 0.25rem;">
+            <select id="asset-category" onchange="checkTickerQuote()" style="padding: 0.5rem; background: var(--bg-card); color: white; border: 1px solid var(--border-color); border-radius: 0.25rem;">
               <option value="ACOES">Ações</option>
               <option value="FIIS">FIIs</option>
               <option value="RENDA_FIXA">Renda Fixa</option>
@@ -144,7 +151,10 @@
             </select>
             <input type="number" step="0.0001" id="asset-qty" placeholder="Quantidade" required style="padding: 0.5rem; background: var(--bg-card); color: white; border: 1px solid var(--border-color); border-radius: 0.25rem;">
             <input type="number" step="0.01" id="asset-price" placeholder="Preço Médio (R$)" required style="padding: 0.5rem; background: var(--bg-card); color: white; border: 1px solid var(--border-color); border-radius: 0.25rem;">
-            <button type="submit" class="btn-primary" style="padding: 0.5rem;">Salvar</button>
+            <div style="display: flex; gap: 0.5rem;">
+              <button type="submit" class="btn-primary" style="padding: 0.5rem; flex: 1;">Salvar</button>
+              <button type="button" class="btn-secondary" onclick="closeAddAssetModal()" style="padding: 0.5rem; width: auto;">Cancelar</button>
+            </div>
           </form>
         </div>
 

@@ -128,18 +128,52 @@ public class PortfolioService {
             .build();
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
 
+    public static class LiveQuote {
+        private final BigDecimal price;
+        private final String source;
+        private final String name;
+
+        public LiveQuote(BigDecimal price, String source, String name) {
+            this.price = price;
+            this.source = source;
+            this.name = name;
+        }
+
+        public BigDecimal getPrice() { return price; }
+        public String getSource() { return source; }
+        public String getName() { return name; }
+    }
+
     public BigDecimal fetchLivePricePublic(String ticker, AssetCategory category) {
         return fetchLivePrice(ticker, category);
     }
 
-    private BigDecimal fetchLivePrice(String ticker, AssetCategory category) {
+    public LiveQuote fetchLiveQuote(String ticker, AssetCategory category) {
         if (ticker == null || ticker.trim().isBlank()) {
             return null;
         }
 
         String cleanTicker = ticker.trim().toUpperCase();
-        List<String> candidates = new ArrayList<>();
 
+        // Se a categoria for OPCOES ou o ticker tiver formato de opção/ativo da B3, consulta a B3 primeiro
+        if (category == AssetCategory.OPCOES || cleanTicker.matches("^[A-Z]{4}[A-Z][0-9A-Z]+$")) {
+            LiveQuote b3Quote = tryFetchFromB3(cleanTicker);
+            if (b3Quote != null) {
+                log.info("Cotação obtida da B3 para Opção '{}': R$ {}", cleanTicker, b3Quote.getPrice());
+                return b3Quote;
+            }
+        }
+
+        if ((category == AssetCategory.ACOES || category == AssetCategory.FIIS) && !cleanTicker.contains("-") && !cleanTicker.endsWith(".SA")) {
+            LiveQuote b3Quote = tryFetchFromB3(cleanTicker);
+            if (b3Quote != null) {
+                log.info("Cotação obtida da B3 para '{}': R$ {}", cleanTicker, b3Quote.getPrice());
+                return b3Quote;
+            }
+        }
+
+        // Yahoo Finance com múltiplos candidatos
+        List<String> candidates = new ArrayList<>();
         if (cleanTicker.endsWith(".SA")) {
             candidates.add(cleanTicker);
             candidates.add(cleanTicker.substring(0, cleanTicker.length() - 3));
@@ -161,11 +195,67 @@ public class PortfolioService {
             BigDecimal price = tryFetchFromYahoo(candidate);
             if (price != null) {
                 log.info("Cotação obtida do Yahoo Finance para '{}' (candidato '{}'): R$ {}", ticker, candidate, price);
-                return price;
+                return new LiveQuote(price, "Yahoo Finance", null);
             }
         }
 
-        log.warn("Nenhuma cotação encontrada no Yahoo Finance para o ticker: '{}' (candidatos testados: {})", ticker, candidates);
+        // Fallback final: tenta B3 caso ainda não tenha consultado
+        LiveQuote fallbackB3 = tryFetchFromB3(cleanTicker.replace(".SA", ""));
+        if (fallbackB3 != null) {
+            log.info("Cotação obtida da B3 (fallback) para '{}': R$ {}", cleanTicker, fallbackB3.getPrice());
+            return fallbackB3;
+        }
+
+        log.warn("Nenhuma cotação encontrada na B3 ou Yahoo Finance para o ticker: '{}'", ticker);
+        return null;
+    }
+
+    private BigDecimal fetchLivePrice(String ticker, AssetCategory category) {
+        LiveQuote quote = fetchLiveQuote(ticker, category);
+        return quote != null ? quote.getPrice() : null;
+    }
+
+    private LiveQuote tryFetchFromB3(String queryTicker) {
+        try {
+            String url = "https://cotacao.b3.com.br/mds/api/v1/InstrumentQuotation/" + queryTicker;
+            java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create(url))
+                    .GET()
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                    .header("Accept", "application/json")
+                    .timeout(java.time.Duration.ofSeconds(4))
+                    .build();
+
+            java.net.http.HttpResponse<String> resp = httpClient.send(req, java.net.http.HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() == 200 && resp.body() != null && !resp.body().isBlank()) {
+                com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(resp.body());
+                if ("OK".equalsIgnoreCase(root.path("BizSts").path("cd").asText())) {
+                    com.fasterxml.jackson.databind.JsonNode trad = root.path("Trad");
+                    if (trad.isArray() && trad.size() > 0) {
+                        com.fasterxml.jackson.databind.JsonNode scty = trad.get(0).path("scty");
+                        com.fasterxml.jackson.databind.JsonNode sctyQtn = scty.path("SctyQtn");
+                        String desc = scty.hasNonNull("desc") ? scty.path("desc").asText() : null;
+
+                        BigDecimal price = null;
+                        if (sctyQtn.hasNonNull("curPrc") && sctyQtn.path("curPrc").asDouble() > 0) {
+                            price = BigDecimal.valueOf(sctyQtn.path("curPrc").asDouble()).setScale(2, RoundingMode.HALF_UP);
+                        } else if (sctyQtn.hasNonNull("avrgPric") && sctyQtn.path("avrgPric").asDouble() > 0) {
+                            price = BigDecimal.valueOf(sctyQtn.path("avrgPric").asDouble()).setScale(2, RoundingMode.HALF_UP);
+                        } else if (sctyQtn.hasNonNull("opngPric") && sctyQtn.path("opngPric").asDouble() > 0) {
+                            price = BigDecimal.valueOf(sctyQtn.path("opngPric").asDouble()).setScale(2, RoundingMode.HALF_UP);
+                        } else if (sctyQtn.hasNonNull("minPric") && sctyQtn.path("minPric").asDouble() > 0) {
+                            price = BigDecimal.valueOf(sctyQtn.path("minPric").asDouble()).setScale(2, RoundingMode.HALF_UP);
+                        }
+
+                        if (price != null) {
+                            return new LiveQuote(price, "B3", desc);
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Erro ao consultar B3 para {}: {}", queryTicker, e.getMessage());
+        }
         return null;
     }
 

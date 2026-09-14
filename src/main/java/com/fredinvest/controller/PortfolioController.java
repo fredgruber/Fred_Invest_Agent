@@ -40,11 +40,18 @@ public class PortfolioController {
     @GetMapping("/quote/{ticker}")
     public ResponseEntity<java.util.Map<String, Object>> getLiveQuote(@PathVariable String ticker,
                                                                       @RequestParam(required = false) com.fredinvest.model.AssetCategory category) {
-        java.math.BigDecimal price = portfolioService.fetchLivePricePublic(ticker, category);
+        com.fredinvest.service.PortfolioService.LiveQuote quote = portfolioService.fetchLiveQuote(ticker, category);
         java.util.Map<String, Object> result = new java.util.HashMap<>();
         result.put("ticker", ticker.toUpperCase().trim());
-        result.put("price", price);
-        result.put("found", price != null);
+        if (quote != null) {
+            result.put("price", quote.getPrice());
+            result.put("source", quote.getSource());
+            result.put("name", quote.getName());
+            result.put("found", true);
+        } else {
+            result.put("price", null);
+            result.put("found", false);
+        }
         return ResponseEntity.ok(result);
     }
 

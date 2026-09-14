@@ -423,7 +423,8 @@ async function checkTickerQuote() {
   const tickerInput = document.getElementById('asset-ticker');
   if (!tickerInput) return;
   const ticker = tickerInput.value.trim().toUpperCase();
-  const category = document.getElementById('asset-category')?.value || 'ACOES';
+  const catSelect = document.getElementById('asset-category');
+  let category = catSelect?.value || 'ACOES';
   const badge = document.getElementById('ticker-quote-badge');
   if (!badge) return;
 
@@ -432,10 +433,16 @@ async function checkTickerQuote() {
     return;
   }
 
+  // Auto-detecta Opção brasileira (ex: VALEJ854, PETRJ300) se ainda não estiver selecionada
+  if (/^[A-Z]{4}[A-Z][0-9A-Z]+$/.test(ticker) && catSelect && catSelect.value !== 'OPCOES') {
+    catSelect.value = 'OPCOES';
+    category = 'OPCOES';
+  }
+
   badge.style.display = 'inline-block';
   badge.style.background = 'var(--bg-card)';
   badge.style.color = 'var(--text-muted)';
-  badge.innerText = `Buscando cotação no Yahoo...`;
+  badge.innerText = `Buscando cotação ao vivo...`;
 
   try {
     const res = await fetch(`/api/v1/portfolios/quote/${encodeURIComponent(ticker)}?category=${category}`, {
@@ -446,7 +453,15 @@ async function checkTickerQuote() {
       if (data.found && data.price != null) {
         badge.style.background = '#065f46';
         badge.style.color = '#34d399';
-        badge.innerText = `Yahoo Finance: ${formatCurrency(data.price)}`;
+        const sourceName = data.source || 'Ao Vivo';
+        badge.innerText = `${sourceName}: ${formatCurrency(data.price)}`;
+
+        // Preenche o nome do ativo se o backend retornar e o input estiver vazio ou igual ao ticker
+        const nameInput = document.getElementById('asset-name');
+        if (nameInput && data.name && (!nameInput.value || nameInput.value.trim() === ticker)) {
+          nameInput.value = data.name.trim();
+        }
+
         const priceInput = document.getElementById('asset-price');
         if (priceInput && !priceInput.value) {
           priceInput.placeholder = `Sugestão: ${data.price.toFixed(2)}`;

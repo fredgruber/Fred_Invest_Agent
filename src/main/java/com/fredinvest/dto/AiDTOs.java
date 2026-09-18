@@ -45,6 +45,7 @@ public class AiDTOs {
         private String prompt;
         private Long portfolioId;
         private String provider; // GEMINI, OPENAI, CLAUDE, DEEPSEEK
+        private String riskProfile; // CONSERVADOR, MODERADO, ARROJADO
         private String apiKey;
     }
 

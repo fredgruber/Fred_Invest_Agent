@@ -25,3 +25,8 @@ logs/
 # Temporary upgrade logs
 .github/modernize/
 
+# H2 Database files
+data/
+*.mv.db
+*.trace.db
+

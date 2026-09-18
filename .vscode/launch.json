@@ -9,7 +9,7 @@
       "projectName": "fred-invest-agent",
       "envFile": "${workspaceFolder}/.env",
       "env": {
-        "SPRING_DATASOURCE_URL": "jdbc:h2:mem:fredinvestdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE",
+        "SPRING_DATASOURCE_URL": "jdbc:h2:file:./data/fredinvestdb;DB_CLOSE_DELAY=-1;AUTO_SERVER=TRUE;MODE=PostgreSQL",
         "SPRING_DATASOURCE_USERNAME": "sa",
         "SPRING_DATASOURCE_PASSWORD": "",
         "SPRING_JPA_HIBERNATE_DDL_AUTO": "update",

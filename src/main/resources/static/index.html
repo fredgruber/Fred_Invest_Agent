@@ -31,7 +31,7 @@
           <option value="CLAUDE">🧠 Anthropic Claude 3.5 Sonnet</option>
           <option value="DEEPSEEK">📊 DeepSeek V3</option>
         </select>
-        <input type="password" id="ai-api-key-input" placeholder="🔑 Gemini API Key (opcional)" style="padding: 0.35rem 0.5rem; background: var(--bg-primary); color: white; border: 1px solid var(--border-color); border-radius: 0.375rem; font-size: 0.8rem; width: 170px;" onchange="saveAiApiKey()" title="Cole sua chave da API do Google Gemini (Google AI Studio) para respostas ao vivo pela internet">
+        <input type="password" id="ai-api-key-input" placeholder="🔑 Gemini API Key (opcional)" style="padding: 0.35rem 0.5rem; background: var(--bg-primary); color: white; border: 1px solid var(--border-color); border-radius: 0.375rem; font-size: 0.8rem; width: 170px;" oninput="saveAiApiKey()" onchange="saveAiApiKey()" title="Cole sua chave da API do Google Gemini (Google AI Studio) para respostas ao vivo pela internet">
       </div>
 
       <!-- Logged User Info Badge -->
@@ -202,9 +202,21 @@
     <!-- Tab 2: IA Assistente -->
     <div id="tab-content-ai" class="hidden">
       <div class="card">
-        <div class="card-header">
-          <h2>🤖 Análise da Carteira por IA</h2>
-          <button class="btn-primary" style="width: auto;" onclick="runAiAnalysis()">Disparar Análise</button>
+        <div class="card-header" style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem;">
+          <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+            <h2 style="margin: 0;">🤖 Análise da Carteira por IA</h2>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; background: var(--bg-primary); padding: 0.35rem 0.75rem; border-radius: 0.375rem; border: 1px solid var(--border-color);">
+              <label for="ai-risk-profile-select" style="font-size: 0.9rem; font-weight: 600; color: var(--accent-blue); margin: 0;">⚖️ Perfil:</label>
+              <select id="ai-risk-profile-select" onchange="onRiskProfileChange(this.value)" style="padding: 0.35rem 0.6rem; background: var(--bg-card); color: white; border: 1px solid var(--border-color); border-radius: 0.25rem; font-size: 0.9rem; font-weight: bold; cursor: pointer;">
+                <option value="CONSERVADOR">🛡️ Conservador</option>
+                <option value="MODERADO" selected>⚖️ Moderado</option>
+                <option value="ARROJADO">🚀 Agressivo / Arrojado</option>
+              </select>
+            </div>
+            <button class="btn-primary" style="width: auto; padding: 0.6rem 1.25rem;" onclick="runAiAnalysis()">Disparar Análise</button>
+          </div>
         </div>
         <div id="ai-analysis-result">
           <p style="color: var(--text-muted);">Clique no botão acima para que a inteligência artificial analise a diversificação e riscos da sua carteira.</p>
@@ -231,7 +243,7 @@
           <div style="margin-bottom: 0.5rem; color: var(--accent-blue);"><strong>Assistente:</strong> Olá! Sou seu assistente financeiro de IA. Em que posso ajudar na gestão da sua carteira, opções (pozinhos) ou Open Finance hoje?</div>
         </div>
         <form onsubmit="handleChatSubmit(event)" style="display: flex; gap: 0.5rem;">
-          <input type="text" id="chat-input" placeholder="Ex: analisar pozinhos para 09/26 ou como diversificar minha carteira..." required style="flex: 1; padding: 0.75rem; background: var(--bg-primary); color: white; border: 1px solid var(--border-color); border-radius: 0.375rem;">
+          <input type="text" id="chat-input" placeholder="Ex: devo manter ALEJ854 ou como reequilibrar meus ativos..." required style="flex: 1; padding: 0.75rem; background: var(--bg-primary); color: white; border: 1px solid var(--border-color); border-radius: 0.375rem;">
           <button type="submit" class="btn-primary" style="width: auto; padding: 0.75rem 1.5rem;">Enviar</button>
         </form>
       </div>

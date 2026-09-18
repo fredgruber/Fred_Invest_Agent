@@ -833,6 +833,12 @@ function setupAiProvider() {
     apiKeyInput.value = savedKey;
   }
 
+  const savedProfile = localStorage.getItem('fred_ai_risk_profile') || 'MODERADO';
+  const headerRisk = document.getElementById('header-risk-profile-select');
+  const tabRisk = document.getElementById('ai-risk-profile-select');
+  if (headerRisk) headerRisk.value = savedProfile;
+  if (tabRisk) tabRisk.value = savedProfile;
+
   if (!select) return;
 
   if (userProvider === 'GOOGLE') {
@@ -846,6 +852,15 @@ function setupAiProvider() {
     }
   }
   onAiProviderChange();
+}
+
+function onRiskProfileChange(val) {
+  if (!val) return;
+  localStorage.setItem('fred_ai_risk_profile', val);
+  const headerRisk = document.getElementById('header-risk-profile-select');
+  const tabRisk = document.getElementById('ai-risk-profile-select');
+  if (headerRisk && headerRisk.value !== val) headerRisk.value = val;
+  if (tabRisk && tabRisk.value !== val) tabRisk.value = val;
 }
 
 function onAiProviderChange() {
@@ -870,14 +885,39 @@ function onAiProviderChange() {
   const val = select.value;
   badge.innerText = providerNames[val] || val;
   badge.style.background = badgeColors[val] || '#2563eb';
+
+  const keyInput = document.getElementById('ai-api-key-input');
+  if (keyInput) {
+    if (val === 'OPENAI') {
+      keyInput.placeholder = '🔑 OpenAI API Key';
+      keyInput.title = 'Cole sua chave da API da OpenAI para respostas ao vivo';
+    } else if (val === 'CLAUDE') {
+      keyInput.placeholder = '🔑 Claude API Key';
+      keyInput.title = 'Cole sua chave da API da Anthropic Claude';
+    } else if (val === 'DEEPSEEK') {
+      keyInput.placeholder = '🔑 DeepSeek API Key';
+      keyInput.title = 'Cole sua chave da API da DeepSeek para respostas ao vivo';
+    } else {
+      keyInput.placeholder = '🔑 Gemini API Key';
+      keyInput.title = 'Cole sua chave da API do Google Gemini (Google AI Studio) para respostas ao vivo pela internet';
+    }
+  }
+}
+
+function formatAiText(text) {
+  if (!text) return '';
+  let escaped = escapeHtml(text);
+  escaped = escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  return escaped;
 }
 
 async function runAiAnalysis() {
   const resultDiv = document.getElementById('ai-analysis-result');
   const selectedProvider = document.getElementById('ai-provider-select')?.value || 'GEMINI';
+  const riskProfile = document.getElementById('header-risk-profile-select')?.value || document.getElementById('ai-risk-profile-select')?.value || localStorage.getItem('fred_ai_risk_profile') || 'MODERADO';
   const apiKey = localStorage.getItem('fred_ai_api_key') || document.getElementById('ai-api-key-input')?.value || '';
 
-  resultDiv.innerHTML = `<p style="color: var(--accent-blue);">Analisando carteira com inteligência artificial (${selectedProvider})...</p>`;
+  resultDiv.innerHTML = `<p style="color: var(--accent-blue);">Analisando carteira com inteligência artificial (${selectedProvider}) para perfil ${riskProfile}...</p>`;
 
   try {
     const res = await fetch('/api/v1/ai/analyze', {
@@ -886,34 +926,44 @@ async function runAiAnalysis() {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${jwtToken}`
       },
-      body: JSON.stringify({ riskProfile: 'MODERADO', provider: selectedProvider, apiKey: apiKey })
+      body: JSON.stringify({ riskProfile: riskProfile, provider: selectedProvider, apiKey: apiKey })
     });
 
     const data = await res.json();
     resultDiv.innerHTML = `
-      <div style="margin-bottom: 0.5rem;">
+      <div style="margin-bottom: 0.75rem; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
         <span class="badge" style="background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-muted); font-size: 0.8rem;">Modelo: ${data.model || data.provider}</span>
+        <span class="badge" style="background: rgba(59, 130, 246, 0.15); border: 1px solid var(--accent-blue); color: var(--accent-blue); font-size: 0.8rem;">Perfil: ${riskProfile}</span>
+      </div>
+      <div style="margin-bottom: 1.25rem;">
+        <h4 style="color: var(--accent-blue); font-size: 1.1rem; margin-bottom: 0.5rem;">📋 Resumo Executivo & Recomendações</h4>
+        <div style="white-space: pre-wrap; line-height: 1.6; background: var(--bg-primary); padding: 1rem; border-radius: 0.5rem; border: 1px solid var(--border-color);">${formatAiText(data.summary)}</div>
       </div>
       <div style="margin-bottom: 1rem;">
-        <h4 style="color: var(--accent-blue); font-size: 1.1rem; margin-bottom: 0.5rem;">Resumo Executivo</h4>
-        <p>${data.summary}</p>
+        <h4 style="color: var(--accent-purple); font-size: 1.1rem; margin-bottom: 0.5rem;">⚖️ Avaliação de Risco</h4>
+        <p style="white-space: pre-wrap; line-height: 1.5;">${formatAiText(data.riskAssessment)}</p>
       </div>
+      ${data.diversificationAdvice && data.diversificationAdvice.length > 0 ? `
       <div style="margin-bottom: 1rem;">
-        <h4 style="color: var(--accent-purple); font-size: 1.1rem; margin-bottom: 0.5rem;">Avaliação de Risco</h4>
-        <p>${data.riskAssessment}</p>
-      </div>
-      <div style="margin-bottom: 1rem;">
-        <h4 style="color: var(--accent-green); font-size: 1.1rem; margin-bottom: 0.5rem;">Conselhos de Diversificação</h4>
-        <ul>${data.diversificationAdvice.map(a => `<li>${a}</li>`).join('')}</ul>
-      </div>
+        <h4 style="color: var(--accent-green); font-size: 1.1rem; margin-bottom: 0.5rem;">💡 Conselhos de Diversificação</h4>
+        <ul style="padding-left: 1.25rem; line-height: 1.6;">${data.diversificationAdvice.map(a => `<li>${formatAiText(a)}</li>`).join('')}</ul>
+      </div>` : ''}
+      ${data.recommendedActions && data.recommendedActions.length > 0 ? `
       <div>
-        <h4 style="color: #f59e0b; font-size: 1.1rem; margin-bottom: 0.5rem;">Ações Recomendadas</h4>
-        <ul>${data.recommendedActions.map(a => `<li>${a}</li>`).join('')}</ul>
-      </div>
+        <h4 style="color: #f59e0b; font-size: 1.1rem; margin-bottom: 0.5rem;">🎯 Ações Recomendadas (Manutenção / Alteração)</h4>
+        <ul style="padding-left: 1.25rem; line-height: 1.6;">${data.recommendedActions.map(a => `<li>${formatAiText(a)}</li>`).join('')}</ul>
+      </div>` : ''}
     `;
   } catch (err) {
     resultDiv.innerHTML = '<p style="color: var(--accent-red);">Erro ao comunicar com a API de IA.</p>';
   }
+}
+
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.innerText = text;
+  return div.innerHTML;
 }
 
 async function handleChatSubmit(e) {
@@ -923,10 +973,11 @@ async function handleChatSubmit(e) {
   if (!prompt) return;
 
   const selectedProvider = document.getElementById('ai-provider-select')?.value || 'GEMINI';
+  const riskProfile = document.getElementById('header-risk-profile-select')?.value || document.getElementById('ai-risk-profile-select')?.value || localStorage.getItem('fred_ai_risk_profile') || 'MODERADO';
   const apiKey = localStorage.getItem('fred_ai_api_key') || document.getElementById('ai-api-key-input')?.value || '';
 
   const chatContainer = document.getElementById('chat-messages');
-  chatContainer.innerHTML += `<div style="margin-bottom: 0.5rem; text-align: right;"><strong>Você:</strong> ${prompt}</div>`;
+  chatContainer.innerHTML += `<div style="margin-bottom: 0.5rem; text-align: right;"><strong>Você:</strong> ${escapeHtml(prompt)}</div>`;
   input.value = '';
 
   try {
@@ -936,11 +987,11 @@ async function handleChatSubmit(e) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${jwtToken}`
       },
-      body: JSON.stringify({ prompt, provider: selectedProvider, apiKey: apiKey })
+      body: JSON.stringify({ prompt, provider: selectedProvider, riskProfile: riskProfile, apiKey: apiKey })
     });
 
     const data = await res.json();
-    chatContainer.innerHTML += `<div style="margin-bottom: 0.5rem; color: var(--accent-blue);"><strong>Assistente [${data.model || data.provider}] (${data.timestamp}):</strong> ${data.reply}</div>`;
+    chatContainer.innerHTML += `<div style="margin-bottom: 0.75rem; color: var(--accent-blue); white-space: pre-wrap; line-height: 1.5; background: var(--bg-primary); padding: 0.75rem; border-radius: 0.5rem; border: 1px solid var(--border-color);"><strong>Assistente [${data.model || data.provider}] (${data.timestamp}):</strong>\n${formatAiText(data.reply)}</div>`;
     chatContainer.scrollTop = chatContainer.scrollHeight;
   } catch (err) {
     chatContainer.innerHTML += `<div style="margin-bottom: 0.5rem; color: var(--accent-red);">Erro ao responder.</div>`;

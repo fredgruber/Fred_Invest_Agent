@@ -1,7 +1,8 @@
-const CACHE_NAME = 'fred-invest-v5';
+const CACHE_NAME = 'fred-invest-v8';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
+  '/open-finance-callback.html',
   '/css/app.css',
   '/js/app.js',
   '/manifest.json'

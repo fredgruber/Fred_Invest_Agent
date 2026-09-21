@@ -300,7 +300,11 @@ function switchTab(tab) {
     }
   });
 
-  if (tab === 'openfinance') loadConsents();
+  if (tab === 'openfinance') {
+    loadConsents();
+    loadXpStatus();
+    loadOpenFinanceInstitutions();
+  }
 }
 
 // Dashboard Functions
@@ -999,13 +1003,17 @@ async function handleChatSubmit(e) {
 }
 
 // Open Finance Functions
+let currentXpConsentId = null;
+
 async function loadOpenFinanceInstitutions() {
   try {
     const res = await fetch('/api/v1/open-finance/institutions');
     const insts = await res.json();
 
     const grid = document.getElementById('institutions-grid');
-    grid.innerHTML = insts.map(i => `
+    // Filtra a XP da grade secundária para não duplicar com o card em destaque
+    const otherInsts = insts.filter(i => i.id !== 'xp');
+    grid.innerHTML = otherInsts.map(i => `
       <div style="background: var(--bg-primary); padding: 1rem; border-radius: 0.5rem; border: 1px solid var(--border-color); display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
         <span style="font-size: 2rem;">${i.logoUrl}</span>
         <strong>${i.name}</strong>
@@ -1017,7 +1025,243 @@ async function loadOpenFinanceInstitutions() {
   }
 }
 
+async function loadXpStatus() {
+  try {
+    const res = await fetch('/api/v1/open-finance/xp/status', {
+      headers: { 'Authorization': `Bearer ${jwtToken}` }
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+
+    const badge = document.getElementById('xp-status-badge');
+    const info = document.getElementById('xp-account-info');
+    const btnConnect = document.getElementById('btn-xp-connect');
+    const btnSync = document.getElementById('btn-xp-sync');
+    const btnDisconnect = document.getElementById('btn-xp-disconnect');
+
+    if (data.connected) {
+      currentXpConsentId = data.consentId;
+      if (badge) {
+        badge.innerText = '🟢 Conectado ao Open Finance XP';
+        badge.style.background = 'rgba(16, 185, 129, 0.2)';
+        badge.style.border = '1px solid var(--accent-green)';
+        badge.style.color = 'var(--accent-green)';
+      }
+      if (info) {
+        info.style.display = 'block';
+        info.innerHTML = `✅ Conta XP: <strong>${escapeHtml(data.accountNumber)}</strong> • Consentimento ativo até ${data.expiresAt ? formatDateOnly(data.expiresAt) : '12 meses'}`;
+      }
+      if (btnConnect) btnConnect.style.display = 'none';
+      if (btnSync) btnSync.style.display = 'inline-flex';
+      if (btnDisconnect) btnDisconnect.style.display = 'inline-flex';
+    } else {
+      currentXpConsentId = null;
+      if (badge) {
+        badge.innerText = '⚪ Não Conectado';
+        badge.style.background = 'var(--bg-primary)';
+        badge.style.border = '1px solid var(--border-color)';
+        badge.style.color = 'var(--text-muted)';
+      }
+      if (info) info.style.display = 'none';
+      if (btnConnect) btnConnect.style.display = 'inline-flex';
+      if (btnSync) btnSync.style.display = 'none';
+      if (btnDisconnect) btnDisconnect.style.display = 'none';
+    }
+  } catch (err) {
+    console.error('Erro ao verificar status XP:', err);
+  }
+}
+
+async function openXpConnectModal() {
+  const modal = document.getElementById('xp-connect-modal');
+  if (modal) modal.classList.remove('hidden');
+
+  try {
+    const res = await fetch('/api/v1/open-finance/xp/config', {
+      headers: { 'Authorization': `Bearer ${jwtToken}` }
+    });
+    if (res.ok) {
+      const config = await res.json();
+      const clientIdInput = document.getElementById('xp-client-id');
+      if (clientIdInput && config.clientId) {
+        clientIdInput.value = config.clientId;
+      }
+    }
+  } catch (err) {
+    console.error('Erro ao carregar configurações XP:', err);
+  }
+}
+
+function closeXpConnectModal() {
+  const modal = document.getElementById('xp-connect-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
+async function startOfficialXpAuth() {
+  if (!jwtToken) {
+    alert('Por favor, faça login antes de autorizar o Open Finance.');
+    return;
+  }
+
+  const clientId = document.getElementById('xp-client-id')?.value.trim() || '';
+  const clientSecret = document.getElementById('xp-client-secret')?.value.trim() || '';
+
+  // Se o usuário preencheu credenciais no modal, salva primeiro no servidor
+  if (clientId || clientSecret) {
+    try {
+      await fetch('/api/v1/open-finance/xp/config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwtToken}`
+        },
+        body: JSON.stringify({
+          clientId: clientId,
+          clientSecret: clientSecret
+        })
+      });
+    } catch (err) {
+      console.warn('Não foi possível salvar configurações previamente:', err);
+    }
+  }
+
+  try {
+    const res = await fetch('/api/v1/open-finance/xp/consent', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${jwtToken}`
+      }
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      alert(data.message || 'Falha ao iniciar consentimento oficial com a XP. Verifique suas credenciais.');
+      return;
+    }
+
+    if (data.authUrl) {
+      // Redireciona o usuário para o portal oficial de autorização da XP / Pluggy
+      window.location.href = data.authUrl;
+    } else {
+      alert('Não foi possível gerar a URL de autorização da XP.');
+    }
+  } catch (err) {
+    alert('Erro no Open Finance XP: ' + err.message);
+  }
+}
+
+async function submitXpConnect(e) {
+  e.preventDefault();
+  const clientId = document.getElementById('xp-client-id')?.value.trim() || '';
+  const clientSecret = document.getElementById('xp-client-secret')?.value.trim() || '';
+  const apiToken = document.getElementById('xp-api-token')?.value.trim() || '';
+  const replacePortfolio = document.getElementById('xp-replace-portfolio')?.checked ?? true;
+
+  if (clientId || clientSecret) {
+    try {
+      await fetch('/api/v1/open-finance/xp/config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwtToken}`
+        },
+        body: JSON.stringify({
+          clientId: clientId,
+          clientSecret: clientSecret
+        })
+      });
+    } catch (ignored) {}
+  }
+
+  const btn = document.getElementById('btn-xp-submit');
+  const originalText = btn ? btn.innerText : 'Sincronizar Custódia Oficial';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = 'Consultando API oficial da XP...';
+  }
+
+  try {
+    const res = await fetch('/api/v1/open-finance/xp/connect', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${jwtToken}`
+      },
+      body: JSON.stringify({
+        clientId: clientId,
+        clientSecret: clientSecret,
+        apiToken: apiToken,
+        replacePortfolio: replacePortfolio
+      })
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.message || 'Falha na conexão oficial com a XP.');
+    }
+
+    closeXpConnectModal();
+    alert(data.message || 'Custódia oficial sincronizada com sucesso!');
+    await loadXpStatus();
+    await loadConsents();
+    await loadDashboardData();
+  } catch (err) {
+    alert('Erro no Open Finance Oficial XP: ' + err.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = originalText;
+    }
+  }
+}
+
+async function syncXpNow() {
+  try {
+    const res = await fetch('/api/v1/open-finance/xp/sync', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${jwtToken}` }
+    });
+    const data = await res.json();
+    alert(data.message || 'Sincronização com a XP concluída!');
+    await loadXpStatus();
+    await loadDashboardData();
+    await loadConsents();
+  } catch (err) {
+    alert('Erro ao sincronizar com a XP: ' + err.message);
+  }
+}
+
+async function disconnectXp() {
+  if (!confirm('Deseja realmente revogar a conexão Open Finance com a XP Investimentos?')) {
+    return;
+  }
+  if (!currentXpConsentId) return;
+
+  try {
+    const res = await fetch(`/api/v1/open-finance/consents/${currentXpConsentId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${jwtToken}` }
+    });
+    if (res.ok) {
+      alert('Conexão com a XP revogada.');
+      await loadXpStatus();
+      await loadConsents();
+    } else {
+      alert('Erro ao desconectar da XP.');
+    }
+  } catch (err) {
+    alert('Erro ao revogar: ' + err.message);
+  }
+}
+
 async function connectInstitution(instId) {
+  if (instId === 'xp') {
+    openXpConnectModal();
+    return;
+  }
+
   try {
     const res = await fetch('/api/v1/open-finance/consent', {
       method: 'POST',
@@ -1030,7 +1274,6 @@ async function connectInstitution(instId) {
 
     const data = await res.json();
     if (confirm(`Autorizar solicitação de consentimento com a instituição ${data.institutionName}?`)) {
-      // Simular autorização e sincronização de dados
       const authRes = await fetch(`/api/v1/open-finance/consent/${data.consentId}/authorize`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${jwtToken}` }
@@ -1063,14 +1306,34 @@ async function loadConsents() {
     container.innerHTML = consents.map(c => `
       <div style="background: var(--bg-primary); padding: 0.75rem 1rem; border-radius: 0.375rem; border: 1px solid var(--border-color); margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center;">
         <div>
-          <strong>${c.institutionName}</strong>
-          <span style="font-size: 0.8rem; color: var(--text-muted); display: block;">ID: ${c.consentId}</span>
+          <strong>${escapeHtml(c.institutionName)}</strong>
+          <span style="font-size: 0.8rem; color: var(--text-muted); display: block;">ID: ${escapeHtml(c.consentId)}</span>
         </div>
-        <span class="badge" style="background: var(--accent-green); color: black;">${c.status}</span>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span class="badge" style="background: ${c.status === 'AUTHORIZED' ? 'var(--accent-green)' : 'var(--text-muted)'}; color: black;">${c.status}</span>
+          ${c.status === 'AUTHORIZED' ? `<button class="btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; color: var(--accent-red);" onclick="revokeConsentById(${c.id})">Revogar</button>` : ''}
+        </div>
       </div>
     `).join('');
   } catch (err) {
     console.error('Erro ao carregar consentimentos:', err);
+  }
+}
+
+async function revokeConsentById(id) {
+  if (!confirm('Deseja realmente revogar este consentimento?')) return;
+  try {
+    const res = await fetch(`/api/v1/open-finance/consents/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${jwtToken}` }
+    });
+    if (res.ok) {
+      alert('Consentimento revogado com sucesso.');
+      await loadConsents();
+      await loadXpStatus();
+    }
+  } catch (err) {
+    alert('Erro ao revogar: ' + err.message);
   }
 }
 

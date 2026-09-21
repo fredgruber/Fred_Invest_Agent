@@ -515,6 +515,23 @@ public class PortfolioService {
     }
 
     @Transactional
+    public void clearPortfolioAssets(@NonNull Long portfolioId, String userEmail) {
+        User user = getUserByEmail(userEmail);
+        Portfolio portfolio = portfolioRepository.findById(portfolioId)
+                .orElseThrow(() -> new IllegalArgumentException("Carteira não encontrada."));
+
+        if (!portfolio.getUser().getId().equals(user.getId())) {
+            throw new SecurityException("Acesso negado a esta carteira.");
+        }
+
+        List<Asset> assets = assetRepository.findByPortfolioId(portfolioId);
+        for (Asset a : assets) {
+            assetTransactionRepository.deleteByAssetId(a.getId());
+            assetRepository.deleteById(a.getId());
+        }
+    }
+
+    @Transactional
     public List<AssetTransactionDTO> getAssetPurchaseHistory(Long portfolioId, @NonNull Long assetId, String userEmail) {
         User user = getUserByEmail(userEmail);
         @SuppressWarnings("null")

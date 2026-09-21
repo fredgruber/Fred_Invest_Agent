@@ -40,4 +40,16 @@ app:
     api-key: ${AI_PROVIDER_API_KEY:mock-key}
     api-url: ${AI_PROVIDER_API_URL:https://api.openai.com/v1/chat/completions}
     model: ${AI_MODEL:gpt-4o-mini}
+  open-finance:
+    xp:
+      client-id: ${XP_OPENFINANCE_CLIENT_ID:}
+      client-secret: ${XP_OPENFINANCE_CLIENT_SECRET:}
+      auth-url: ${XP_OPENFINANCE_AUTH_URL:https://developers.xpi.com.br}
+      token-url: ${XP_OPENFINANCE_TOKEN_URL:https://openapi.xpi.com.br/oauth2/v1/access-token}
+      api-url: ${XP_OPENFINANCE_API_URL:https://openapi.xpi.com.br/open-banking}
+      redirect-uri: ${XP_OPENFINANCE_REDIRECT_URI:http://localhost:8080/open-finance-callback.html}
+    pluggy:
+      client-id: ${PLUGGY_CLIENT_ID:}
+      client-secret: ${PLUGGY_CLIENT_SECRET:}
+      api-url: ${PLUGGY_API_URL:https://api.pluggy.ai}
 

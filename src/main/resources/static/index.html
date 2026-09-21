@@ -251,13 +251,46 @@
 
     <!-- Tab 3: Open Finance -->
     <div id="tab-content-openfinance" class="hidden">
+      <!-- XP Investimentos Featured Card -->
+      <div class="card" style="border: 1px solid rgba(245, 166, 35, 0.4); background: linear-gradient(135deg, rgba(245, 166, 35, 0.08) 0%, rgba(15, 23, 42, 0.6) 100%); margin-bottom: 1.5rem;">
+        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem;">
+          <div style="display: flex; align-items: center; gap: 1rem;">
+            <div style="background: #000; color: #F5A623; font-size: 1.8rem; font-weight: 900; width: 64px; height: 64px; border-radius: 0.75rem; display: flex; align-items: center; justify-content: center; border: 2px solid #F5A623; box-shadow: 0 4px 14px rgba(245, 166, 35, 0.25); flex-shrink: 0;">
+              XP
+            </div>
+            <div>
+              <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <h3 style="margin: 0; font-size: 1.3rem;">XP Investimentos</h3>
+                <span id="xp-status-badge" class="badge" style="background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-muted); font-size: 0.8rem;">⚪ Não Conectado</span>
+              </div>
+              <p style="color: var(--text-muted); margin: 0.35rem 0 0 0; font-size: 0.875rem;">
+                Conexão direta Open Finance para sincronizar ações B3, opções (pozinhos), FIIs e títulos de renda fixa da sua conta XP.
+              </p>
+              <div id="xp-account-info" style="display: none; font-size: 0.85rem; color: var(--accent-green); margin-top: 0.35rem; font-weight: 500;">
+              </div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+            <button id="btn-xp-connect" class="btn-primary" style="background: #F5A623; color: #000; font-weight: bold; border: none; padding: 0.65rem 1.25rem; display: flex; align-items: center; gap: 0.5rem;" onclick="openXpConnectModal()">
+              <span>⚡ Conectar com XP</span>
+            </button>
+            <button id="btn-xp-sync" class="btn-secondary" style="display: none; padding: 0.65rem 1rem;" onclick="syncXpNow()">
+              <span>🔄 Sincronizar Agora</span>
+            </button>
+            <button id="btn-xp-disconnect" class="btn-secondary" style="display: none; color: var(--accent-red); border-color: rgba(239, 68, 68, 0.3); padding: 0.65rem 1rem;" onclick="disconnectXp()">
+              <span>Desconectar</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div class="card">
         <h2>🌐 Conexão Open Finance Brasil</h2>
         <p style="color: var(--text-muted); margin: 0.5rem 0 1.5rem 0;">
           Conecte com segurança suas contas bancárias e corretoras para importar saldos e investimentos automaticamente com o seu consentimento explícito.
         </p>
 
-        <h3 style="margin-bottom: 1rem;">Instituições Suportadas</h3>
+        <h3 style="margin-bottom: 1rem;">Outras Instituições Suportadas</h3>
         <div id="institutions-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
           <!-- Loaded via JS -->
         </div>
@@ -266,8 +299,86 @@
         <div id="consents-list">
           <p style="color: var(--text-muted);">Nenhuma instituição conectada no momento.</p>
         </div>
+      </div>
     </div>
   </main>
+
+  <!-- Modal de Conexão Oficial XP Investimentos -->
+  <div id="xp-connect-modal" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width: 520px; border: 1px solid rgba(245, 166, 35, 0.5); box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <div style="background: #000; color: #F5A623; font-weight: 900; font-size: 1.25rem; width: 38px; height: 38px; border-radius: 0.375rem; display: flex; align-items: center; justify-content: center; border: 1px solid #F5A623;">
+            XP
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 1.15rem;">Conectar com XP Investimentos</h3>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">Open Finance Brasil • CCTVM S/A</span>
+          </div>
+        </div>
+        <button onclick="closeXpConnectModal()" style="background: transparent; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer;">&times;</button>
+      </div>
+
+      <form id="xp-connect-form" onsubmit="submitXpConnect(event)">
+        <div style="background: rgba(245, 166, 35, 0.08); border: 1px solid rgba(245, 166, 35, 0.25); border-radius: 0.5rem; padding: 0.85rem; margin-bottom: 1.25rem; font-size: 0.85rem; color: #E2E8F0; line-height: 1.5;">
+          🔒 <strong>Open Finance Brasil • Fase 4 (Investimentos)</strong><br>
+          Conexão regulamentada pelo <strong>Banco Central do Brasil</strong>. Os ativos da sua custódia oficial serão carregados diretamente da XP via API de Investimentos (Ações, Opções, FIIs e Renda Fixa).
+        </div>
+
+        <!-- Opção 1: Redirecionamento Oficial de Autorização XP -->
+        <div style="background: var(--bg-primary); border: 1px solid rgba(245, 166, 35, 0.4); border-radius: 0.5rem; padding: 1rem; margin-bottom: 1rem; text-align: center;">
+          <h4 style="margin: 0 0 0.5rem; color: #F5A623; font-size: 0.95rem;">Fluxo Oficial de Consentimento (OAuth 2.0 / FAPI)</h4>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.85rem; line-height: 1.4;">
+            Autorize o compartilhamento oficial dos seus investimentos na XP ou via conector Pluggy Open Finance.
+          </p>
+          <button type="button" class="btn-primary" onclick="startOfficialXpAuth()" style="background: #F5A623; color: #000; font-weight: bold; border: none; padding: 0.75rem 1.25rem; width: 100%; border-radius: 0.375rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+            <span>🚀 Iniciar Autorização Oficial na XP</span>
+          </button>
+        </div>
+
+        <!-- Opção 2: Credenciais do Open Finance da XP / Pluggy -->
+        <div style="background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 0.5rem; padding: 1rem; margin-bottom: 1.25rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <h4 style="margin: 0; font-size: 0.9rem; color: #E2E8F0;">⚙️ Credenciais Open Finance (XP / Pluggy)</h4>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">developers.xpi.com.br</span>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+            <div>
+              <label for="xp-client-id" style="display: block; font-size: 0.75rem; margin-bottom: 0.25rem; font-weight: 600;">Client ID (XP ou Pluggy):</label>
+              <input type="text" id="xp-client-id" placeholder="Ex: 8f4a1b... / pluggy-id" style="width: 100%; box-sizing: border-box; padding: 0.55rem; background: var(--bg-secondary); color: white; border: 1px solid var(--border-color); border-radius: 0.375rem; font-size: 0.85rem;">
+            </div>
+            <div>
+              <label for="xp-client-secret" style="display: block; font-size: 0.75rem; margin-bottom: 0.25rem; font-weight: 600;">Client Secret:</label>
+              <input type="password" id="xp-client-secret" placeholder="••••••••••••" style="width: 100%; box-sizing: border-box; padding: 0.55rem; background: var(--bg-secondary); color: white; border: 1px solid var(--border-color); border-radius: 0.375rem; font-size: 0.85rem;">
+            </div>
+          </div>
+
+          <div style="margin-bottom: 0.5rem;">
+            <label for="xp-api-token" style="display: block; font-size: 0.75rem; margin-bottom: 0.25rem; font-weight: 600;">
+              Ou Token de Acesso Direto (Bearer Token / API Key):
+            </label>
+            <input type="password" id="xp-api-token" placeholder="Cole o token oficial gerado no portal de desenvolvedores da XP" style="width: 100%; box-sizing: border-box; padding: 0.55rem; background: var(--bg-secondary); color: white; border: 1px solid var(--border-color); border-radius: 0.375rem; font-size: 0.85rem;">
+          </div>
+        </div>
+
+        <!-- Opção de zerar carteira atual -->
+        <div style="margin-bottom: 1.25rem;">
+          <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer; color: #e2e8f0;">
+            <input type="checkbox" id="xp-replace-portfolio" checked style="accent-color: #F5A623; width: 16px; height: 16px;">
+            <span><strong>Zerar ativos existentes</strong> ao sincronizar (substitui carteira para não somar posições)</span>
+          </label>
+        </div>
+
+        <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+          <button type="button" class="btn-secondary" onclick="closeXpConnectModal()">Cancelar</button>
+          <button type="submit" id="btn-xp-submit" class="btn-primary" style="background: #F5A623; color: #000; font-weight: bold; border: none; padding: 0.65rem 1.25rem;">
+            Sincronizar Custódia Oficial
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <!-- Modal de Validação Manual de Token de API -->
   <div id="token-validation-modal" class="modal-overlay hidden">
